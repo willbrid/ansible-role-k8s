@@ -86,7 +86,52 @@ Aucune.
 Exemples Playbook
 ------------------
 
-- Configuration du noeud plan de contrôle
+- Installation du rôle et définition du fichier d'inventaires
+
+```
+mkdir -p $HOME/install-k8s/roles
+```
+
+```
+vim $HOME/install-k8s/requirements.yml
+```
+
+```
+- name: ansible-role-k8s
+  src: https://github.com/willbrid/ansible-role-k8s.git
+  version: v0.0.1
+```
+
+```
+cd $HOME/install-k8s && ansible-galaxy install -r requirements.yml --roles-path roles
+```
+
+```
+vim $HOME/install-k8s/hosts.ini
+```
+
+```
+[primary_control_plane]
+192.168.1.5
+
+[secondary_control_plane]
+192.168.1.6
+192.168.1.7
+
+[node]
+192.168.1.8
+192.168.1.9
+192.168.1.10
+192.168.1.11
+```
+
+**NB:** Les adresses IP définies dans le fichier **$HOME/install-k8s/hosts.ini** sont fournies à titre d'exemple et doivent être remplacées par les vôtres.
+
+- Configuration et Installation du noeud plan de contrôle
+
+```
+vim $HOME/install-k8s/primary-control-plan.yml
+```
 
 ```
 ---
@@ -102,7 +147,15 @@ Exemples Playbook
   - ansible-role-k8s
 ```
 
-- Configuration des noeuds secondaires plan de contrôle
+```
+cd $HOME/install-k8s && ansible-playbook -i hosts.ini primary-control-plan.yml
+```
+
+- Configuration et installation des noeuds secondaires plan de contrôle
+
+```
+vim $HOME/install-k8s/secondary-control-plan.yml
+```
 
 ```
 ---
@@ -118,7 +171,15 @@ Exemples Playbook
   - ansible-role-k8s
 ```
 
-- Configuration des noeuds worker
+```
+cd $HOME/install-k8s && ansible-playbook -i hosts.ini secondary-control-plan.yml
+```
+
+- Configuration et installation des noeuds worker
+
+```
+vim $HOME/install-k8s/worker-node.yml
+```
 
 ```
 ---
@@ -132,6 +193,10 @@ Exemples Playbook
 
   roles:
   - ansible-role-k8s
+```
+
+```
+cd $HOME/install-k8s && ansible-playbook -i hosts.ini worker-node.yml
 ```
 
 Licence

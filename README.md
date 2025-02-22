@@ -40,8 +40,8 @@ Les variables suivantes doivent être définies pour garantir que le rôle fonct
 Description des Variables
 ----------------------------
 
-- **kubernetes_version** : version de kubernetes à installer **>= 1.28**
-- **kubernetes_specific_version** : version spécifique de kubernetes, **Exemple: 1.28.0**
+- **kubernetes_version** : version de kubernetes à installer **>= 1.29**
+- **kubernetes_specific_version** : version spécifique de kubernetes, **Exemple: 1.29.13**
 - **kubernetes_role** : rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**
 - **kubernetes_control_plane_ip** : adresse ip du noeud plan de contrôle
 - **kubernetes_control_plane_endpoint** : adresse ip ou nom dns du endpoint du plan de contrôle
@@ -57,7 +57,7 @@ Description des Variables
 
 ```
 kubernetes_version: '1.29'
-kubernetes_specific_version: '1.29.0'
+kubernetes_specific_version: '1.29.13'
 kubernetes_role: "primary_control_plane"
 kubernetes_control_plane_ip: ""
 kubernetes_control_plane_endpoint: ""

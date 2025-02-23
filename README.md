@@ -47,7 +47,7 @@ Description des Variables
 `kubernetes_role`|string|Rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**|`"primary_control_plane"`
 `kubernetes_control_plane_ip`|string|Adresse IP du noeud plan de contrôle|`""`
 `kubernetes_control_plane_endpoint`|string|Adresse IP ou nom dns du endpoint du plan de contrôle|`""`
-`kubernetes_cni_network`|dict|Variable de configuration du plugin réseau|Voir détails ci-dessous
+`kubernetes_cni_network`|dict|Variable de configuration du plugin réseau|Voir détails ci-dessous (`kubernetes_cni_network.cni`,`kubernetes_cni_network.cidr`, `kubernetes_cni_network.pod_host_port`, `kubernetes_cni_network.manifest`)
 `kubernetes_cni_network.cni`|string|Nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave**|`"calico"`
 `kubernetes_cni_network.cidr`|string|Plage réseau cidr récommandée par le plugin réseau|`"172.16.0.0/16"`
 `kubernetes_cni_network.pod_host_port`|interger|Port d'hôte d'intercommunication entre les pods du plugin réseau|`179`

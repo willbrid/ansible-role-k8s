@@ -40,43 +40,20 @@ Les variables suivantes doivent être définies pour garantir que le rôle fonct
 Description des Variables
 ----------------------------
 
-- **kubernetes_version** : version de kubernetes à installer **>= 1.29**
-- **kubernetes_specific_version** : version spécifique de kubernetes, **Exemple: 1.29.13**
-- **kubernetes_role** : rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**
-- **kubernetes_control_plane_ip** : adresse ip du noeud plan de contrôle
-- **kubernetes_control_plane_endpoint** : adresse ip ou nom dns du endpoint du plan de contrôle
-- **kubernetes_cni_network** : variable de configuration du plugin réseau : <br>
---- **kubernetes_cni_network.cni** : nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave** <br>
---- **kubernetes_cni_network.cidr** : plage réseau cidr récommandée par le plugin réseau <br>
---- **kubernetes_cni_network.pod_host_port** : port d'hôte d'intercommunication entre les pods du plugin réseau <br>
---- **kubernetes_cni_network.manifest** : fichier manifest d'installation du plugin réseau
-- **kubernetes_control_plane_ports** : ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle
-- **kubernetes_node_ports** : ports réseau à autoriser pour le bon fonctionnement du noeud worker
-
-**Valeurs par défaut de toutes les variables**
-
-```
-kubernetes_version: '1.29'
-kubernetes_specific_version: '1.29.13'
-kubernetes_role: "primary_control_plane"
-kubernetes_control_plane_ip: ""
-kubernetes_control_plane_endpoint: ""
-kubernetes_cni_network:
-  cni: 'calico'
-  cidr: '172.16.0.0/16'
-  pod_host_port: "179"
-  manifest: "https://docs.projectcalico.org/manifests/calico.yaml"
-kubernetes_control_plane_ports:
-- '6443'
-- '2379-2380'
-- '10250'
-- '10257'
-- '10259'
-kubernetes_node_ports:
-- '10250'
-- '10256'
-- '30000-32767'
-```
+|Nom|Type|Description|Valeur par défaut|
+|---|----|-----------|-----------------|
+`kubernetes_version`|string|Version de kubernetes à installer. Format : x.y|`"1.29"`
+`kubernetes_specific_version`|string|Version spécifique de kubernetes. Format : x.y.z|`"1.29.13"`
+`kubernetes_role`|string|Rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**|`"primary_control_plane"`
+`kubernetes_control_plane_ip`|string|Adresse IP du noeud plan de contrôle|`""`
+`kubernetes_control_plane_endpoint`|string|Adresse IP ou nom dns du endpoint du plan de contrôle|`""`
+`kubernetes_cni_network`|dict|Variable de configuration du plugin réseau|Voir détails ci-dessous
+`kubernetes_cni_network.cni`|string|Nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave**|`"calico"`
+`kubernetes_cni_network.cidr`|string|Plage réseau cidr récommandée par le plugin réseau|`"172.16.0.0/16"`
+`kubernetes_cni_network.pod_host_port`|interger|Port d'hôte d'intercommunication entre les pods du plugin réseau|`179`
+`kubernetes_cni_network.manifest`|string|Fichier manifest d'installation du plugin réseau|`"https://docs.projectcalico.org/manifests/calico.yaml"`
+`kubernetes_control_plane_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle|`['6443', '2379-2380', '10250', '10257', '10259']`
+`kubernetes_node_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud worker|`['10250', '10256', '30000-32767']`
 
 Dépendances
 -------------

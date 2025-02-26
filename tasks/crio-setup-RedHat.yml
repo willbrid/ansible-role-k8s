@@ -1,6 +1,6 @@
 ---
 - name: Define cri-o repo
-  copy:
+  ansible.builtin.copy:
     dest: /etc/yum.repos.d/cri-o.repo
     content: |
       [cri-o]
@@ -13,12 +13,12 @@
 
 - name: Install cri-o
   dnf:
-    name: cri-o
+    ansible.builtin.name: cri-o
     state: present
     disable_excludes: cri-o
 
 - name: Activate and start the crio service
-  systemd:
+  ansible.builtin.systemd:
     name: crio
     enabled: yes
     state: started

@@ -1,6 +1,6 @@
 ---
 - name: Authorize the necessary ports permanently for RedHat distro
-  firewalld:
+  ansible.builtin.firewalld:
     port: "{{ item }}/tcp"
     permanent: yes
     state: enabled
@@ -9,7 +9,7 @@
   when: ansible_os_family == "RedHat"
   
 - name: Authorize the necessary ports permanently for Debian distro
-  ufw:
+  ansible.builtin.ufw:
     rule: allow
     port: "{{ item | regex_replace('-', ':') }}"
     proto: tcp
@@ -18,13 +18,13 @@
   when: ansible_os_family == "Debian"
 
 - name: Get the join command from the control plane
-  command: kubeadm token create --print-join-command
+  ansible.builtin.command: kubeadm token create --print-join-command
   delegate_to: "{{ kubernetes_control_plane_ip }}"
   changed_when: false
   register: join_command_result
 
 - name: Join node to the cluster
-  shell: "{{ join_command_result.stdout }}"
+  ansible.builtin.shell: "{{ join_command_result.stdout }}"
   register: kubeadm_join
   changed_when: kubeadm_join.rc == 0
   failed_when: (join_command_result.stdout is not defined) or (kubeadm_join.rc != 0)

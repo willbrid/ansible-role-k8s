@@ -1,6 +1,6 @@
 ---
 - name: Ensure dependencies are installed
-  apt:
+  ansible.builtin.apt:
     pkg:
     - apt-transport-https
     - software-properties-common
@@ -12,30 +12,30 @@
     update_cache: yes
 
 - name: Set default firewall incoming rule
-  ufw:
+  ansible.builtin.ufw:
     default: deny
     direction: incoming
 
 - name: Set default firewall outgoing rule
-  ufw:
+  ansible.builtin.ufw:
     default: allow
     direction: outgoing
 
 - name: Allow ssh incoming rule
-  ufw:
+  ansible.builtin.ufw:
     rule: allow
     port: ssh
     proto: tcp
 
 - name: Authorize cni pod network host port
-  ufw:
+  ansible.builtin.ufw:
     rule: allow
     port: "{{ kubernetes_cni_network.pod_host_port }}"
     proto: tcp
   when: kubernetes_cni_network.pod_host_port != ""
 
 - name: Enable firewall
-  ufw:
+  ansible.builtin.ufw:
     state: enabled
 
 - name: Swap cri-o netfilter setup

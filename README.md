@@ -111,12 +111,12 @@ vim $HOME/install-k8s/primary-control-plan.yml
   become: yes
 
   vars:
-  - kubernetes_role: "primary_control_plane"
-  - kubernetes_control_plane_ip: "192.168.1.5"
-  - kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_role: "primary_control_plane"
+    kubernetes_control_plane_ip: "192.168.1.5"
+    kubernetes_control_plane_endpoint: "192.168.1.5"
 
   roles:
-  - ansible-role-k8s
+    - ansible-role-k8s
 ```
 
 ```bash
@@ -135,12 +135,12 @@ vim $HOME/install-k8s/secondary-control-plan.yml
   become: yes
 
   vars:
-  - kubernetes_role: "secondary_control_plane"
-  - kubernetes_control_plane_ip: "192.168.1.5"
-  - kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_role: "secondary_control_plane"
+    kubernetes_control_plane_ip: "192.168.1.5"
+    kubernetes_control_plane_endpoint: "192.168.1.5"
 
   roles:
-  - ansible-role-k8s
+    - ansible-role-k8s
 ```
 
 ```bash
@@ -159,12 +159,12 @@ vim $HOME/install-k8s/worker-node.yml
   become: yes
 
   vars:
-  - kubernetes_role: "node"
-  - kubernetes_control_plane_ip: "192.168.1.5"
-  - kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_role: "node"
+    kubernetes_control_plane_ip: "192.168.1.5"
+    kubernetes_control_plane_endpoint: "192.168.1.5"
 
   roles:
-  - ansible-role-k8s
+    - ansible-role-k8s
 ```
 
 ```bash

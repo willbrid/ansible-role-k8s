@@ -60,29 +60,29 @@ Aucune.
 
 - Installation du rôle et définition du fichier d'inventaires
 
-```
+```bash
 mkdir -p $HOME/install-k8s/roles
 ```
 
-```
+```bash
 vim $HOME/install-k8s/requirements.yml
 ```
 
-```
+```yaml
 - name: ansible-role-k8s
   src: https://github.com/willbrid/ansible-role-k8s.git
   version: v0.0.1
 ```
 
-```
+```bash
 cd $HOME/install-k8s && ansible-galaxy install -r requirements.yml --roles-path roles
 ```
 
-```
+```bash
 vim $HOME/install-k8s/hosts.ini
 ```
 
-```
+```bash
 [primary_control_plane]
 192.168.1.5
 
@@ -97,15 +97,15 @@ vim $HOME/install-k8s/hosts.ini
 192.168.1.11
 ```
 
-**NB:** Les adresses IP définies dans le fichier **$HOME/install-k8s/hosts.ini** sont fournies à titre d'exemple et doivent être remplacées par les vôtres.
+> Note: Les adresses IP définies dans le fichier `$HOME/install-k8s/hosts.ini` sont fournies à titre d'exemple et doivent être remplacées par les vôtres.
 
 - Configuration et Installation du noeud plan de contrôle
 
-```
+```bash
 vim $HOME/install-k8s/primary-control-plan.yml
 ```
 
-```
+```yaml
 ---
 - hosts: "{{ kubernetes_role }}"
   become: yes
@@ -119,17 +119,17 @@ vim $HOME/install-k8s/primary-control-plan.yml
   - ansible-role-k8s
 ```
 
-```
+```bash
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini primary-control-plan.yml
 ```
 
 - Configuration et installation des noeuds secondaires plan de contrôle
 
-```
+```bash
 vim $HOME/install-k8s/secondary-control-plan.yml
 ```
 
-```
+```yaml
 ---
 - hosts: "{{ kubernetes_role }}"
   become: yes
@@ -143,17 +143,17 @@ vim $HOME/install-k8s/secondary-control-plan.yml
   - ansible-role-k8s
 ```
 
-```
+```bash
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini secondary-control-plan.yml
 ```
 
 - Configuration et installation des noeuds worker
 
-```
+```bash
 vim $HOME/install-k8s/worker-node.yml
 ```
 
-```
+```yaml
 ---
 - hosts: "{{ kubernetes_role }}"
   become: yes
@@ -167,7 +167,7 @@ vim $HOME/install-k8s/worker-node.yml
   - ansible-role-k8s
 ```
 
-```
+```bash
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini worker-node.yml
 ```
 

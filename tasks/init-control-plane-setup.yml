@@ -1,13 +1,13 @@
 ---
 - name: Initialize kubernetes control plane
   ansible.builtin.command: >
-    kubeadm init --pod-network-cidr {{ kubernetes_cni_network.cidr }} 
+    kubeadm init --pod-network-cidr {{ kubernetes_cni_network.cidr }}
     --apiserver-advertise-address {{ kubernetes_control_plane_ip }}
     --kubernetes-version {{ kubernetes_specific_version }}
     --control-plane-endpoint {{ kubernetes_control_plane_endpoint }}
   register: kubeadm_init
   changed_when: "'successfully' in kubeadm_init.stdout"
-  
+
 - name: Create .kube directory
   ansible.builtin.file:
     path: ~/.kube

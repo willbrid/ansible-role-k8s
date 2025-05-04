@@ -2,8 +2,8 @@
 - name: 'Check mandatory variables'
   ansible.builtin.assert:
     that:
-    - kubernetes_control_plane_ip is defined and kubernetes_control_plane_ip | length > 0
-    - kubernetes_control_plane_endpoint is defined and kubernetes_control_plane_endpoint | length > 0
+      - kubernetes_control_plane_ip is defined and kubernetes_control_plane_ip | length > 0
+      - kubernetes_control_plane_endpoint is defined and kubernetes_control_plane_endpoint | length > 0
     fail_msg: "One or more mandatory variables are either undefined or empty."
 
 - name: Force ansible_os_family to RedHat if it is Rocky

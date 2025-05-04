@@ -5,9 +5,9 @@
     permanent: yes
     state: enabled
     immediate: yes
-  loop: "{{ kubernetes_node_ports }}"  
+  loop: "{{ kubernetes_node_ports }}"
   when: ansible_os_family == "RedHat"
-  
+
 - name: Authorize the necessary ports permanently for Debian distro
   ansible.builtin.ufw:
     rule: allow

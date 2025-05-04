@@ -2,12 +2,12 @@
 - name: Ensure dependencies are installed
   ansible.builtin.apt:
     pkg:
-    - apt-transport-https
-    - software-properties-common
-    - ca-certificates
-    - python3
-    - curl  
-    - ufw
+      - apt-transport-https
+      - software-properties-common
+      - ca-certificates
+      - python3
+      - curl
+      - ufw
     state: present
     update_cache: yes
 

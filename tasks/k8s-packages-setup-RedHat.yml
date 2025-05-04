@@ -13,10 +13,10 @@
 
 - name: Install kubernetes packages
   ansible.builtin.dnf:
-    name: 
-    - "kubelet-{{ kubernetes_specific_version }}"
-    - "kubeadm-{{ kubernetes_specific_version }}"
-    - "kubectl-{{ kubernetes_specific_version }}"
+    name:
+      - "kubelet-{{ kubernetes_specific_version }}"
+      - "kubeadm-{{ kubernetes_specific_version }}"
+      - "kubectl-{{ kubernetes_specific_version }}"
     state: present
     disable_excludes: kubernetes
 

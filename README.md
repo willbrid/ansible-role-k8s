@@ -1,10 +1,8 @@
-Ansible-role-k8s
-================
+# Ansible-role-k8s
 
 Ce rôle Ansible configure et installe un cluster Kubernetes multi-nœuds pour les distributions basées sur RedHat (RHEL, CentOS, Rocky Linux) et Debian (Debian, Ubuntu). Il prend en charge la configuration d'un plan de contrôle principal, de nœuds de travail et d'autres plans de conrôle secondaires pour une architecture HA (High Availability).
 
-Exigences
-------------
+## Exigences
 
 - **Inventaire**
 
@@ -37,8 +35,7 @@ Les variables suivantes doivent être définies pour garantir que le rôle fonct
 
 --- **kubernetes_control_plane_endpoint** : pour préciser l'adresse ip ou nom dns du endpoint du plan de contrôle.
 
-Description des Variables
-----------------------------
+## Description des Variables
 
 |Nom|Type|Description|Valeur par défaut|
 |---|----|-----------|-----------------|
@@ -55,13 +52,11 @@ Description des Variables
 `kubernetes_control_plane_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle|`['6443', '2379-2380', '10250', '10257', '10259']`
 `kubernetes_node_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud worker|`['10250', '10256', '30000-32767']`
 
-Dépendances
--------------
+## Dépendances
 
 Aucune.
 
-Exemples Playbook
-------------------
+## Exemples Playbook
 
 - Installation du rôle et définition du fichier d'inventaires
 
@@ -176,12 +171,10 @@ vim $HOME/install-k8s/worker-node.yml
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini worker-node.yml
 ```
 
-Licence
--------
+## Licence
 
 BSD,MIT
 
-Informations sur l'auteur
-------------------
+## Informations sur l'auteur
 
 William Bridge NGASSAM

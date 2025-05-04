@@ -12,27 +12,28 @@
   when: ansible_os_family == "Rocky"
 
 - name: Include os specific variables
-  include_vars: "{{ ansible_os_family }}.yml"
+  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
 
 - name: System setup
-  include_tasks: system-setup-{{ ansible_os_family }}.yml
+  ansible.builtin.include_tasks: system-setup-{{ ansible_os_family }}.yml
 
 - name: Cri-o setup
-  include_tasks: crio-setup-{{ ansible_os_family }}.yml
+  ansible.builtin.include_tasks: crio-setup-{{ ansible_os_family }}.yml
 
 - name: Kubernetes packages setup
-  include_tasks: k8s-packages-setup-{{ ansible_os_family }}.yml
+  ansible.builtin.include_tasks: k8s-packages-setup-{{ ansible_os_family }}.yml
 
 - name: Flush handlers
   ansible.builtin.debug:
     msg: "Executing all handlers"
 
-- meta: flush_handlers
+- name: FLush handlers
+  ansible.builtin.meta: flush_handlers
 
 - name: Control plane setup
-  import_tasks: control-plane-setup.yml
+  ansible.builtin.import_tasks: control-plane-setup.yml
   when: kubernetes_role == 'primary_control_plane' or kubernetes_role == 'secondary_control_plane'
 
 - name: Node setup
-  import_tasks: node-setup.yml
+  ansible.builtin.import_tasks: node-setup.yml
   when: kubernetes_role == 'node'

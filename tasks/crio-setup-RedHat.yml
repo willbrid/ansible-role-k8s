@@ -10,9 +10,10 @@
       gpgcheck=1
       gpgkey=https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ kubernetes_version }}/rpm/repodata/repomd.xml.key
       exclude=cri-o
+    mode: 0644
 
 - name: Install cri-o
-  dnf:
+  ansible.builtin.dnf:
     ansible.builtin.name: cri-o
     state: present
     disable_excludes: cri-o

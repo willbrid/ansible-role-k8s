@@ -2,6 +2,7 @@
 - name: Configure SELinux in permissive mode in current session
   ansible.builtin.command: setenforce 0
   when: ansible_selinux.status == "enabled"
+  changed_when: false
 
 - name: Configure SELinux in permissive mode in config file
   ansible.builtin.replace:
@@ -17,7 +18,7 @@
     enabled: true
 
 - name: Enable Masquerading in firewall permanently
-  ansible.builtin.firewalld:
+  ansible.posix.firewalld:
     zone: public
     masquerade: "true"
     permanent: yes
@@ -25,7 +26,7 @@
     state: enabled
 
 - name: Authorize cni pod network host port
-  ansible.builtin.firewalld:
+  ansible.posix.firewalld:
     port: "{{ kubernetes_cni_network.pod_host_port }}/tcp"
     permanent: yes
     immediate: yes
@@ -33,7 +34,7 @@
   when: kubernetes_cni_network.pod_host_port != ""
 
 - name: Swap cri-o netfilter setup
-  include_tasks: swap-crio-netfilter-setup.yml
+  ansible.builtin.include_tasks: swap-crio-netfilter-setup.yml
 
 - name: Install container-selinux
   ansible.builtin.dnf:

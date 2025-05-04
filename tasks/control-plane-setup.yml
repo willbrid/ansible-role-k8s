@@ -1,6 +1,6 @@
 ---
 - name: Authorize the necessary ports permanently for RedHat distro
-  ansible.builtin.firewalld:
+  ansible.posix.firewalld:
     port: "{{ item }}/tcp"
     permanent: yes
     immediate: yes
@@ -9,7 +9,7 @@
   when: ansible_os_family == "RedHat"
 
 - name: Authorize the necessary ports permanently for Debian distro
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: "{{ item | regex_replace('-', ':') }}"
     proto: tcp
@@ -17,8 +17,10 @@
   loop: "{{ kubernetes_control_plane_ports }}"
   when: ansible_os_family == "Debian"
 
-- import_tasks: init-control-plane-setup.yml
+- name: Import init-control-plane-setup.yml file
+  ansible.builtin.import_tasks: init-control-plane-setup.yml
   when: kubernetes_role == 'primary_control_plane'
 
-- import_tasks: join-control-plane-setup.yml
+- name: Import join-control-plane-setup.yml file
+  ansible.builtin.import_tasks: join-control-plane-setup.yml
   when: kubernetes_role == 'secondary_control_plane'

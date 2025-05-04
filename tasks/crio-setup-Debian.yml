@@ -9,20 +9,23 @@
   ansible.builtin.get_url:
     url: "https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ kubernetes_version }}/deb/Release.key"
     dest: /tmp/cri-o-apt-keyring.gpg
+    mode: 0755
 
 - name: Convert cri-o GPG key to keyring format
   ansible.builtin.shell: cat /tmp/cri-o-apt-keyring.gpg | gpg --dearmor --yes -o /etc/apt/keyrings/cri-o-apt-keyring.gpg && rm /tmp/cri-o-apt-keyring.gpg
+  changed_when: false
 
 - name: Setup 644 permission for cri-o-apt-keyring.gpg file
   ansible.builtin.file:
     path: /etc/apt/keyrings/cri-o-apt-keyring.gpg
-    mode: '0644'
+    mode: 0644
 
 - name: Add cri-o repository to sources list
   ansible.builtin.lineinfile:
     path: /etc/apt/sources.list.d/cri-o.list
     line: "deb [signed-by=/etc/apt/keyrings/cri-o-apt-keyring.gpg] https://pkgs.k8s.io/addons:/cri-o:/stable:/v{{ kubernetes_version }}/deb/ /"
     create: yes
+    mode: 0644
 
 - name: Install cri-o
   ansible.builtin.apt:

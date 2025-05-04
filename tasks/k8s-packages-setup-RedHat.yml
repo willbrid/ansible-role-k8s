@@ -10,6 +10,7 @@
       gpgcheck=1
       gpgkey=https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/rpm/repodata/repomd.xml.key
       exclude=kubelet kubeadm kubectl cri-tools kubernetes-cni
+    mode: 0644
 
 - name: Install kubernetes packages
   ansible.builtin.dnf:
@@ -33,4 +34,5 @@
     line: "KUBELET_EXTRA_ARGS='--node-ip={{ ansible_ssh_host }}'"
     state: present
     create: yes
+    mode: 0644
   notify: Restart kubelet

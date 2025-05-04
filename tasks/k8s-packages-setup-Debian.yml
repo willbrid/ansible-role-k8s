@@ -3,9 +3,11 @@
   ansible.builtin.get_url:
     url: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key"
     dest: /tmp/kubernetes-apt-keyring.gpg
+    mode: 0755
 
 - name: Convert kubernetes GPG key to keyring format
   ansible.builtin.shell: cat /tmp/kubernetes-apt-keyring.gpg | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg && rm /tmp/kubernetes-apt-keyring.gpg
+  changed_when: false
 
 - name: Setup 644 permission for kubernetes-apt-keyring.gpg file
   ansible.builtin.file:
@@ -17,6 +19,7 @@
     path: /etc/apt/sources.list.d/kubernetes.list
     line: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /"
     create: yes
+    mode: 0644
 
 - name: Install kubernetes packages
   ansible.builtin.apt:
@@ -49,4 +52,5 @@
     line: "KUBELET_EXTRA_ARGS='--node-ip={{ ansible_ssh_host }}'"
     state: present
     create: yes
+    mode: 0644
   notify: Restart kubelet

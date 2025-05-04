@@ -12,31 +12,31 @@
     update_cache: yes
 
 - name: Set default firewall incoming rule
-  ansible.builtin.ufw:
+  community.general.ufw:
     default: deny
     direction: incoming
 
 - name: Set default firewall outgoing rule
-  ansible.builtin.ufw:
+  community.general.ufw:
     default: allow
     direction: outgoing
 
 - name: Allow ssh incoming rule
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: ssh
     proto: tcp
 
 - name: Authorize cni pod network host port
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: "{{ kubernetes_cni_network.pod_host_port }}"
     proto: tcp
   when: kubernetes_cni_network.pod_host_port != ""
 
 - name: Enable firewall
-  ansible.builtin.ufw:
+  community.general.ufw:
     state: enabled
 
 - name: Swap cri-o netfilter setup
-  include_tasks: swap-crio-netfilter-setup.yml
+  ansible.builtin.include_tasks: swap-crio-netfilter-setup.yml

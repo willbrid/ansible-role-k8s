@@ -1,6 +1,6 @@
 ---
 - name: Authorize the necessary ports permanently for RedHat distro
-  ansible.builtin.firewalld:
+  ansible.posix.firewalld:
     port: "{{ item }}/tcp"
     permanent: yes
     state: enabled
@@ -9,7 +9,7 @@
   when: ansible_os_family == "RedHat"
 
 - name: Authorize the necessary ports permanently for Debian distro
-  ansible.builtin.ufw:
+  community.general.ufw:
     rule: allow
     port: "{{ item | regex_replace('-', ':') }}"
     proto: tcp
@@ -24,7 +24,7 @@
   register: join_command_result
 
 - name: Join node to the cluster
-  ansible.builtin.shell: "{{ join_command_result.stdout }}"
+  ansible.builtin.command: "{{ join_command_result.stdout }}"
   register: kubeadm_join
   changed_when: kubeadm_join.rc == 0
   failed_when: (join_command_result.stdout is not defined) or (kubeadm_join.rc != 0)

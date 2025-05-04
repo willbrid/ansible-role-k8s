@@ -10,7 +10,7 @@ Le fichier d'inventaire doit être organisé pour refléter les différents type
 
 **Exemple pour un cluster avec 3 noeuds plan de contrôle (1 noeud principal et 2 noeuds secondaire) et 4 noeuds worker**
 
-```
+```bash
 [primary_control_plane]
 192.168.1.5
 

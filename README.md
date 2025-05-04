@@ -71,7 +71,7 @@ vim $HOME/install-k8s/requirements.yml
 ```yaml
 - name: ansible-role-k8s
   src: https://github.com/willbrid/ansible-role-k8s.git
-  version: v0.0.1
+  version: v0.0.3
 ```
 
 ```bash

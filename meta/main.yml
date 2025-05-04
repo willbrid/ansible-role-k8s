@@ -1,22 +1,30 @@
+---
 galaxy_info:
   author: William Bridge
+  role_name: k8s
+  namespace: willbrid
   description: Kubernetes installation for RedHat/Rocky and Debian/Ubuntu
   license: license (BSD, MIT)
   min_ansible_version: "2.16"
   platforms:
-  - name: Fedora
-    versions:
-    - all
-  - name: Debian
-    versions:
-    - all
+    - name: Rocky
+      versions:
+        - "9.2"
+    - name: Debian
+      versions:
+        - "bookworm"
+        - "bullseye"
+    - name: Ubuntu
+      versions:
+        - "noble"
+        - "jammy"
   galaxy_tags:
-  - kubernetes
-  - k8s
-  - orchestration
-  - system
-  - container
-  - cri-o
-  - kudeadm
+    - kubernetes
+    - k8s
+    - orchestration
+    - system
+    - container
+    - cri-o
+    - kudeadm
 
 dependencies: []

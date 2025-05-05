@@ -1,5 +1,7 @@
 # Ansible-role-k8s
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/willbrid/ansible-role-k8s/blob/main/LICENSE)
+
 Ce rôle Ansible configure et installe un cluster Kubernetes multi-nœuds pour les distributions basées sur RedHat (RHEL, CentOS, Rocky Linux) et Debian (Debian, Ubuntu). Il prend en charge la configuration d'un plan de contrôle principal, de nœuds de travail et d'autres plans de conrôle secondaires pour une architecture HA (High Availability).
 
 ## Exigences
@@ -173,7 +175,7 @@ cd $HOME/install-k8s && ansible-playbook -i hosts.ini worker-node.yml
 
 ## Licence
 
-BSD,MIT
+MIT
 
 ## Informations sur l'auteur
 

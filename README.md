@@ -2,11 +2,9 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/willbrid/ansible-role-k8s/blob/main/LICENSE)
 
-Ce rôle Ansible configure et installe un cluster Kubernetes multi-nœuds pour les distributions basées sur RedHat (RHEL, CentOS, Rocky Linux) et Debian (Debian, Ubuntu). Il prend en charge la configuration d'un plan de contrôle principal, de nœuds de travail et d'autres plans de conrôle secondaires pour une architecture HA (High Availability).
+Le rôle **ansible-role-k8s** permet d'installer et de configurer un cluster Kubernetes multi-nœuds pour les distributions basées sur RedHat (RHEL, CentOS, Rocky Linux) et Debian (Debian, Ubuntu). Il prend en charge la configuration d'un plan de contrôle principal, de nœuds de travail et d'autres plans de conrôle secondaires pour une architecture HA (High Availability).
 
 ## Exigences
-
-- **Inventaire**
 
 Le fichier d'inventaire doit être organisé pour refléter les différents types de nœuds de votre cluster Kubernetes au travers des différentes valeurs possibles de rôle : **primary_control_plane**, **secondary_control_plane** et **node**.
 
@@ -27,32 +25,22 @@ Le fichier d'inventaire doit être organisé pour refléter les différents type
 192.168.1.11
 ```
 
-- **Variables obligatoires**
-
-Les variables suivantes doivent être définies pour garantir que le rôle fonctionne correctement : 
-
---- **kubernetes_role** : pour préciser le rôle du noeud à configurer parmi : **primary_control_plane**, **secondary_control_plane** et **node**
-
---- **kubernetes_control_plane_ip** : pour préciser l'adresse ip du noeud plan de contrôle
-
---- **kubernetes_control_plane_endpoint** : pour préciser l'adresse ip ou nom dns du endpoint du plan de contrôle.
-
 ## Description des Variables
 
-|Nom|Type|Description|Valeur par défaut|
-|---|----|-----------|-----------------|
-`kubernetes_version`|string|Version de kubernetes à installer. Format : x.y|`"1.29"`
-`kubernetes_specific_version`|string|Version spécifique de kubernetes. Format : x.y.z|`"1.29.13"`
-`kubernetes_role`|string|Rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**|`"primary_control_plane"`
-`kubernetes_control_plane_ip`|string|Adresse IP du noeud plan de contrôle|`""`
-`kubernetes_control_plane_endpoint`|string|Adresse IP ou nom dns du endpoint du plan de contrôle|`""`
-`kubernetes_cni_network`|dict|Variable de configuration du plugin réseau|Voir détails ci-dessous (`kubernetes_cni_network.cni`,`kubernetes_cni_network.cidr`, `kubernetes_cni_network.pod_host_port`, `kubernetes_cni_network.manifest`)
-`kubernetes_cni_network.cni`|string|Nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave**|`"calico"`
-`kubernetes_cni_network.cidr`|string|Plage réseau cidr récommandée par le plugin réseau|`"172.16.0.0/16"`
-`kubernetes_cni_network.pod_host_port`|interger|Port d'hôte d'intercommunication entre les pods du plugin réseau|`179`
-`kubernetes_cni_network.manifest`|string|Fichier manifest d'installation du plugin réseau|`"https://docs.projectcalico.org/manifests/calico.yaml"`
-`kubernetes_control_plane_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle|`['6443', '2379-2380', '10250', '10257', '10259']`
-`kubernetes_node_ports`|list[string]|Ports réseau à autoriser pour le bon fonctionnement du noeud worker|`['10250', '10256', '30000-32767']`
+|Nom|Type|Description|Obligatoire|Valeur par défaut|
+|---|----|-----------|-----------|-----------------|
+`kubernetes_version`|str|version de kubernetes à installer. Format : x.y|non|`"1.29"`
+`kubernetes_specific_version`|str|version spécifique de kubernetes. Format : x.y.z|non|`"1.29.13"`
+`kubernetes_role`|str|rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**|non|`"primary_control_plane"`
+`kubernetes_control_plane_ip`|str|Adresse IP du noeud plan de contrôle|oui|`""`
+`kubernetes_control_plane_endpoint`|str|Adresse IP ou nom dns du endpoint du plan de contrôle|oui|`""`
+`kubernetes_cni_network`|dict|variable de configuration du plugin réseau|oui|Voir détails ci-dessous (`kubernetes_cni_network.cni`,`kubernetes_cni_network.cidr`, `kubernetes_cni_network.pod_host_port`, `kubernetes_cni_network.manifest`)
+`kubernetes_cni_network.cni`|str|nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave**|non|`"calico"`
+`kubernetes_cni_network.cidr`|str|plage réseau cidr récommandée par le plugin réseau|non|`"172.16.0.0/16"`
+`kubernetes_cni_network.pod_host_port`|int|port d'hôte d'intercommunication entre les pods du plugin réseau|non|`179`
+`kubernetes_cni_network.manifest`|str|fichier manifest d'installation du plugin réseau|non|`"https://docs.projectcalico.org/manifests/calico.yaml"`
+`kubernetes_control_plane_ports`|list[str]|ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle (la documentation sur les ports à autoriser du noeud plan de contrôle devrait être consultée pour la version de kubernetes choisie)|non|`['6443', '2379-2380', '10250', '10257', '10259']`
+`kubernetes_node_ports`|list[str]|ports réseau à autoriser pour le bon fonctionnement du noeud worker (la documentation sur les ports à autoriser des noeuds worker devrait être consultée pour la version de kubernetes choisie)|non|`['10250', '10256', '30000-32767']`
 
 ## Dépendances
 
@@ -72,7 +60,7 @@ vim $HOME/install-k8s/requirements.yml
 
 ```yaml
 - name: ansible-role-k8s
-  src: https://github.com/willbrid/ansible-role-k8s.git
+  src: git+https://github.com/willbrid/ansible-role-k8s.git
   version: v0.0.3
 ```
 

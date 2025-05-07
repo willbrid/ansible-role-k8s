@@ -34,7 +34,7 @@
   when: kubernetes_cni_network.pod_host_port != ""
 
 - name: Swap cri-o netfilter setup
-  ansible.builtin.include_tasks: swap-crio-netfilter-setup.yml
+  ansible.builtin.import_tasks: swap-crio-netfilter-setup.yml
 
 - name: Install container-selinux
   ansible.builtin.dnf:

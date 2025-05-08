@@ -11,6 +11,12 @@
     replace: 'SELINUX=permissive'
   when: ansible_selinux.status == "enabled"
 
+- name: Install firewalld and container-selinux
+  ansible.builtin.dnf:
+    name: ['firewalld', 'container-selinux']
+    state: present
+    update_cache: true
+
 - name: Ensure firewalld is started and enabled
   ansible.builtin.systemd:
     name: firewalld
@@ -35,8 +41,3 @@
 
 - name: Swap cri-o netfilter setup
   ansible.builtin.include_tasks: swap-crio-netfilter-setup.yml
-
-- name: Install container-selinux
-  ansible.builtin.dnf:
-    name: container-selinux
-    state: present

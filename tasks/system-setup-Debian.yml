@@ -39,4 +39,4 @@
     state: enabled
 
 - name: Swap cri-o netfilter setup
-  ansible.builtin.import_tasks: swap-crio-netfilter-setup.yml
+  ansible.builtin.include_tasks: swap-crio-netfilter-setup.yml

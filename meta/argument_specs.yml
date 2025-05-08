@@ -1,0 +1,93 @@
+---
+argument_specs:
+  main:
+    short_description: "Kubernetes installation for linux"
+    description:
+      - "Kubernetes installation for RedHat/Rocky and Debian/Ubuntu"
+    author: "WillBrid"
+    options:
+      kubernetes_version:
+        type: str
+        required: false
+        default: "1.29"
+        description:
+          - "kubernetes version in x.y form"
+      kubernetes_specific_version:
+        type: str
+        required: false
+        default: "1.29.13"
+        description:
+          - "kubernetes specific version in x.y.z form"
+      kubernetes_role:
+        type: str
+        required: false
+        default: "primary_control_plane"
+        choices:
+          - "primary_control_plane"
+          - "secondary_control_plane"
+          - "node"
+        description:
+          - "kubernetes node component role"
+      kubernetes_control_plane_ip:
+        type: str
+        required: true
+        description:
+          - "kubernetes control plan ip"
+      kubernetes_control_plane_endpoint:
+        type: str
+        required: true
+        description:
+          - "kubernetes control plan endpoint"
+      kubernetes_control_plane_ports:
+        type: list
+        required: false
+        elements: str
+        default:
+          - '6443'
+          - '2379-2380'
+          - '10250'
+          - '10257'
+          - '10259'
+        description:
+          - "kubernetes control plane ports to allow in firewall"
+      kubernetes_node_ports:
+        type: list
+        required: false
+        elements: str
+        default:
+          - '10250'
+          - '10256'
+          - '30000-32767'
+        description:
+          - "kubernetes node ports to allow in firewall"
+      kubernetes_cni_network:
+        type: dict
+        required: false
+        default:
+          cni: 'calico'
+          cidr: '172.16.0.0/16'
+          pod_host_port: "179"
+          manifest: "https://docs.projectcalico.org/manifests/calico.yaml"
+        description:
+          - "kubernetes cni network configuration"
+        options:
+          cni:
+            type: str
+            required: false
+            default: "calico"
+            description: "cni type"
+          cidr:
+            type: str
+            required: false
+            default: "172.16.0.0/16"
+            description: "cni network cidr"
+          pod_host_port:
+            type: str
+            required: false
+            default: "179"
+            description: "cni pods communication listen port"
+          manifest:
+            type: str
+            required: false
+            default: "https://docs.projectcalico.org/manifests/calico.yaml"
+            description: "cni manifest link to install"

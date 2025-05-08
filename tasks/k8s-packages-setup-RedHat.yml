@@ -22,7 +22,7 @@
     disable_excludes: kubernetes
 
 - name: Activate and start the kubelet service
-  ansible.builtin.systemd:
+  ansible.builtin.systemd_service:
     name: kubelet
     enabled: yes
     state: started

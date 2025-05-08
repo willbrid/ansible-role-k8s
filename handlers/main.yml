@@ -4,6 +4,6 @@
   changed_when: true
 
 - name: Restart kubelet
-  ansible.builtin.systemd:
+  ansible.builtin.systemd_service:
     name: kubelet
     state: restarted

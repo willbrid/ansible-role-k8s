@@ -39,7 +39,7 @@
     selection: hold
 
 - name: Activate and start the crio service
-  ansible.builtin.systemd:
+  ansible.builtin.systemd_service:
     name: crio
     enabled: yes
     state: started

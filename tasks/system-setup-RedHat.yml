@@ -18,7 +18,7 @@
     update_cache: true
 
 - name: Ensure firewalld is started and enabled
-  ansible.builtin.systemd:
+  ansible.builtin.systemd_service:
     name: firewalld
     state: started
     enabled: true

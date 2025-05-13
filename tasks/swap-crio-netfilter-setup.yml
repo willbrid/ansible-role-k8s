@@ -1,6 +1,6 @@
 ---
 - name: Disable swap temporarily
-  ansible.builtin.command: swapoff -a
+  ansible.builtin.shell: "swapoff -a"
   changed_when: false
 
 - name: Comment out swap entries in /etc/fstab
@@ -9,17 +9,17 @@
     regexp: '^([^#].*\s+swap\s+.*)$'
     replace: '#\1'
 
-- name: Create cri-o.conf file to load the br_netfilter module for cri-o
-  ansible.builtin.copy:
-    dest: /etc/modules-load.d/cri-o.conf
-    content: |
-      br_netfilter
-    mode: 0644
+- name: Create /etc/modules-load.d directory if not exist
+  ansible.builtin.file:
+    path: "/etc/modules-load.d"
+    state: directory
+    mode: 0755
 
 - name: Load the br_netfilter module
   community.general.modprobe:
     name: br_netfilter
     state: present
+    persistent: present
 
 - name: Create cri-o.conf file for sysctl to enable IPv4 routing
   ansible.builtin.copy:

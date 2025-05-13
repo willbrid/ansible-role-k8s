@@ -11,7 +11,7 @@
     replace: 'SELINUX=permissive'
   when: ansible_selinux.status == "enabled"
 
-- name: Install firewalld and container-selinux
+- name: Install firewalld and container-selinux packages
   ansible.builtin.dnf:
     name: ['firewalld', 'container-selinux']
     state: present

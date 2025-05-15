@@ -48,7 +48,7 @@ Aucune.
 
 ## Exemples Playbook
 
-- Installation du rôle et définition du fichier d'inventaires
+- Installation du rôle et définition du fichier d'inventaires relativement à la sandbox
 
 ```bash
 mkdir -p $HOME/install-k8s/roles
@@ -61,7 +61,7 @@ vim $HOME/install-k8s/requirements.yml
 ```yaml
 - name: ansible-role-k8s
   src: git+https://github.com/willbrid/ansible-role-k8s.git
-  version: v0.0.3
+  version: v0.0.4
 ```
 
 ```bash
@@ -74,20 +74,16 @@ vim $HOME/install-k8s/hosts.ini
 
 ```bash
 [primary_control_plane]
-192.168.1.5
+192.168.56.6
 
 [secondary_control_plane]
-192.168.1.6
-192.168.1.7
+192.168.56.7
 
 [node]
-192.168.1.8
-192.168.1.9
-192.168.1.10
-192.168.1.11
+192.168.56.8
 ```
 
-> Note: Les adresses IP définies dans le fichier `$HOME/install-k8s/hosts.ini` sont fournies à titre d'exemple et doivent être remplacées par les vôtres.
+> Note: Les adresses IP définies dans le fichier `$HOME/install-k8s/hosts.ini` sont fournies à titre d'exemple relativement à l'environnement de la sandbox et doivent être remplacées par les vôtres.
 
 - Configuration et Installation du noeud plan de contrôle
 
@@ -102,8 +98,8 @@ vim $HOME/install-k8s/primary-control-plan.yml
 
   vars:
     kubernetes_role: "primary_control_plane"
-    kubernetes_control_plane_ip: "192.168.1.5"
-    kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_control_plane_ip: "192.168.56.6"
+    kubernetes_control_plane_endpoint: "192.168.56.6"
 
   roles:
     - ansible-role-k8s
@@ -126,8 +122,8 @@ vim $HOME/install-k8s/secondary-control-plan.yml
 
   vars:
     kubernetes_role: "secondary_control_plane"
-    kubernetes_control_plane_ip: "192.168.1.5"
-    kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_control_plane_ip: "192.168.56.6"
+    kubernetes_control_plane_endpoint: "192.168.56.6"
 
   roles:
     - ansible-role-k8s
@@ -150,8 +146,8 @@ vim $HOME/install-k8s/worker-node.yml
 
   vars:
     kubernetes_role: "node"
-    kubernetes_control_plane_ip: "192.168.1.5"
-    kubernetes_control_plane_endpoint: "192.168.1.5"
+    kubernetes_control_plane_ip: "192.168.56.6"
+    kubernetes_control_plane_endpoint: "192.168.56.6"
 
   roles:
     - ansible-role-k8s

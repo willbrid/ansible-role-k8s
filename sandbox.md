@@ -28,6 +28,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 
   # General Vagrant VM configuration
   config.ssh.insert_key = false
+  config.vm.synced_folder ".", "/vagrant", disabled: true
   config.vm.box = box_distro
   config.vm.box_version = box_version
   
@@ -48,4 +49,38 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
     end
   end
 end
+```
+
+Pour démarrer les machines en fonction des distributions rocky linux9, debian12, debian11, ubuntu24.04, ubuntu22.04, procédez comme suit :
+
+- pour rockylinux9
+
+```
+vagrant up
+```
+
+> Note: par défaut pour rockylinux9, BOX_DISTRO="rockylinux/9" et BOX_DISTRO_VERSION="5.0.0" 
+
+- pour ubuntu24.04
+
+```
+BOX_DISTRO="bento/ubuntu-24.04" BOX_DISTRO_VERSION="202502.21.0" vagrant up
+```
+
+- pour ubuntu22.04
+
+```
+BOX_DISTRO="bento/ubuntu-22.04" BOX_DISTRO_VERSION="202407.23.0" vagrant up
+```
+
+- pour debian12
+
+```
+BOX_DISTRO="generic/debian12" BOX_DISTRO_VERSION="4.3.12" vagrant up
+```
+
+- pour debian11
+
+```
+BOX_DISTRO="generic/debian11" BOX_DISTRO_VERSION="4.3.12" vagrant up
 ```

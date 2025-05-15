@@ -14,7 +14,7 @@
 
 - name: Install cri-o
   ansible.builtin.dnf:
-    ansible.builtin.name: cri-o
+    name: cri-o
     state: present
     disable_excludes: cri-o
 

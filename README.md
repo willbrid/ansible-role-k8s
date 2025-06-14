@@ -51,7 +51,7 @@ Aucune.
 - Installation du rôle et définition du fichier d'inventaires relativement à la sandbox
 
 ```bash
-mkdir -p $HOME/install-k8s/roles
+mkdir -p $HOME/install-k8s
 ```
 
 ```bash
@@ -65,7 +65,7 @@ vim $HOME/install-k8s/requirements.yml
 ```
 
 ```bash
-cd $HOME/install-k8s && ansible-galaxy install -r requirements.yml --roles-path roles
+cd $HOME/install-k8s && ansible-galaxy install --force -r requirements.yml
 ```
 
 ```bash

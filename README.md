@@ -2,13 +2,13 @@
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/willbrid/ansible-role-k8s/blob/main/LICENSE)
 
-Le rôle **ansible-role-k8s** permet d'installer et de configurer un cluster Kubernetes multi-nœuds pour les distributions basées sur RedHat (RHEL, CentOS, Rocky Linux) et Debian (Debian, Ubuntu). Il prend en charge la configuration d'un plan de contrôle principal, de nœuds de travail et d'autres plans de conrôle secondaires pour une architecture HA (High Availability).
+The **ansible-role-k8s** role allows you to install and configure a multi-node Kubernetes cluster for Red Hat (RHEL, CentOS, Rocky Linux) and Debian (Debian, Ubuntu) based distributions. It supports the configuration of a primary control plane, worker nodes, and other secondary control planes for a High Availability (HA) architecture.
 
-## Exigences
+## Requirements
 
-Le fichier d'inventaire doit être organisé pour refléter les différents types de nœuds de votre cluster Kubernetes au travers des différentes valeurs possibles de rôle : **primary_control_plane**, **secondary_control_plane** et **node**.
+The inventory file must be organized to reflect the different types of nodes in your Kubernetes cluster through the different possible role values: **primary_control_plane**, **secondary_control_plane** and **node**.
 
-**Exemple pour un cluster avec 3 noeuds plan de contrôle (1 noeud principal et 2 noeuds secondaire) et 4 noeuds worker**
+**Example for a cluster with 3 control plane nodes (1 primary node and 2 secondary nodes) and 4 worker nodes**
 
 ```bash
 [primary_control_plane]
@@ -25,30 +25,30 @@ Le fichier d'inventaire doit être organisé pour refléter les différents type
 192.168.1.11
 ```
 
-## Description des Variables
+## Description of Variables
 
-|Nom|Type|Description|Obligatoire|Valeur par défaut|
-|---|----|-----------|-----------|-----------------|
-`kubernetes_version`|str|version de kubernetes à installer. Format : x.y|non|`"1.29"`
-`kubernetes_specific_version`|str|version spécifique de kubernetes. Format : x.y.z|non|`"1.29.13"`
-`kubernetes_role`|str|rôle du noeud à configurer. Valeurs possibles : **primary_control_plane**, **secondary_control_plane**, **node**|non|`"primary_control_plane"`
-`kubernetes_control_plane_ip`|str|Adresse IP du noeud plan de contrôle|oui|`""`
-`kubernetes_control_plane_endpoint`|str|Adresse IP ou nom dns du endpoint du plan de contrôle|oui|`""`
-`kubernetes_cni_network`|dict|variable de configuration du plugin réseau|oui|Voir détails ci-dessous (`kubernetes_cni_network.cni`,`kubernetes_cni_network.cidr`, `kubernetes_cni_network.pod_host_port`, `kubernetes_cni_network.manifest`)
-`kubernetes_cni_network.cni`|str|nom du plugin réseau. Valeurs possibles : **calico**, **flannel**, **weave**|non|`"calico"`
-`kubernetes_cni_network.cidr`|str|plage réseau cidr récommandée par le plugin réseau|non|`"172.16.0.0/16"`
-`kubernetes_cni_network.pod_host_port`|int|port d'hôte d'intercommunication entre les pods du plugin réseau|non|`179`
-`kubernetes_cni_network.manifest`|str|fichier manifest d'installation du plugin réseau|non|`"https://docs.projectcalico.org/manifests/calico.yaml"`
-`kubernetes_control_plane_ports`|list[str]|ports réseau à autoriser pour le bon fonctionnement du noeud plan de contrôle (la documentation sur les ports à autoriser du noeud plan de contrôle devrait être consultée pour la version de kubernetes choisie)|non|`['6443', '2379-2380', '10250', '10257', '10259']`
-`kubernetes_node_ports`|list[str]|ports réseau à autoriser pour le bon fonctionnement du noeud worker (la documentation sur les ports à autoriser des noeuds worker devrait être consultée pour la version de kubernetes choisie)|non|`['10250', '10256', '30000-32767']`
+|Name|Type|Description|Mandatory|Default value|
+|----|----|-----------|---------|-------------|
+`kubernetes_version`|str|Kubernetes version to install. Format: x.y|no|`"1.29"`
+`kubernetes_specific_version`|str|Specific version of Kubernetes. Format: x.y.z|no|`"1.29.13"`
+`kubernetes_role`|str|Role of the node to be configured. Possible values : **primary_control_plane**, **secondary_control_plane**, **node**|no|`"primary_control_plane"`
+`kubernetes_control_plane_ip`|str|Control plane node IP address|yes|`""`
+`kubernetes_control_plane_endpoint`|str|IP address or DNS name of the control plane endpoint|yes|`""`
+`kubernetes_cni_network`|dict|Network plugin configuration variable | Yes | See details below (`kubernetes_cni_network.cni`,`kubernetes_cni_network.cidr`, `kubernetes_cni_network.pod_host_port`, `kubernetes_cni_network.manifest`)
+`kubernetes_cni_network.cni`|str|Network plugin name. Possible values : **calico**, **flannel**, **weave**|no|`"calico"`
+`kubernetes_cni_network.cidr`|str|CIDR network range recommended by the network plugin|no|`"172.16.0.0/16"`
+`kubernetes_cni_network.pod_host_port`|int|intercommunication host port between the network plugin pods|no|`179`
+`kubernetes_cni_network.manifest`|str|network plugin installation manifest file|no|`"https://docs.projectcalico.org/manifests/calico.yaml"`
+`kubernetes_control_plane_ports`|list[str]|Network ports to allow for the proper functioning of the control plane node (the documentation on the ports to allow for the control plane node should be consulted for the chosen version of Kubernetes)|no|`['6443', '2379-2380', '10250', '10257', '10259']`
+`kubernetes_node_ports`|list[str]|Network ports to allow for the proper functioning of the worker node (the documentation on the ports to allow for worker nodes should be consulted for the chosen version of Kubernetes)|no|`['10250', '10256', '30000-32767']`
 
-## Dépendances
+## Dependencies
 
-Aucune.
+None.
 
-## Exemples Playbook
+## Example Playbook
 
-- Installation du rôle et définition du fichier d'inventaires relativement à la sandbox
+- Role installation and inventory file definition in relation to the sandbox
 
 ```bash
 mkdir -p $HOME/install-k8s
@@ -83,9 +83,9 @@ vim $HOME/install-k8s/hosts.ini
 192.168.56.8
 ```
 
-> Note: Les adresses IP définies dans le fichier `$HOME/install-k8s/hosts.ini` sont fournies à titre d'exemple relativement à l'environnement de la sandbox et doivent être remplacées par les vôtres.
+> Note: The IP addresses defined in the file `$HOME/install-k8s/hosts.ini` are provided as an example relative to the sandbox environment and must be replaced with your own.
 
-- Configuration et Installation du noeud plan de contrôle
+- Control plane node configuration and installation
 
 ```bash
 vim $HOME/install-k8s/primary-control-plan.yml
@@ -109,7 +109,7 @@ vim $HOME/install-k8s/primary-control-plan.yml
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini primary-control-plan.yml
 ```
 
-- Configuration et installation des noeuds secondaires plan de contrôle
+- Configuration and installation of secondary nodes control plane
 
 ```bash
 vim $HOME/install-k8s/secondary-control-plan.yml
@@ -133,7 +133,7 @@ vim $HOME/install-k8s/secondary-control-plan.yml
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini secondary-control-plan.yml
 ```
 
-- Configuration et installation des noeuds worker
+- Configuration and installation of worker nodes
 
 ```bash
 vim $HOME/install-k8s/worker-node.yml
@@ -157,10 +157,10 @@ vim $HOME/install-k8s/worker-node.yml
 cd $HOME/install-k8s && ansible-playbook -i hosts.ini worker-node.yml
 ```
 
-## Licence
+## License
 
 MIT
 
-## Informations sur l'auteur
+## Author Information
 
 William Bridge NGASSAM

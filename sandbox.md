@@ -1,4 +1,4 @@
-# Sandbox avec virtualbox 7.0.24
+# Sandbox with VirtualBox 7.0.24
 
 ```bash
 mkdir -p $HOME/install-k8s && cd $HOME/install-k8s
@@ -24,7 +24,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vbguest.iso_path = "./VBoxGuestAdditions_7.0.24.iso"
 
   box_distro = ENV['BOX_DISTRO'] || "rockylinux/9"
-  box_version = ENV['BOX_DISTRO_VERSION'] || "5.0.0"
+  box_version = ENV['BOX_DISTRO_VERSION'] || "6.0.0"
 
   # General Vagrant VM configuration
   config.ssh.insert_key = false
@@ -51,36 +51,24 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 end
 ```
 
-Pour démarrer les machines en fonction des distributions rocky linux9, debian12, debian11, ubuntu24.04, ubuntu22.04, procédez comme suit :
+To boot the machines according to the Rocky Linux 9, Debian 12, Debian 11, Ubuntu 24.04, Ubuntu 22.04 distributions, proceed as follows:
 
-- pour rockylinux9
+- for rockylinux9
 
 ```
 vagrant up
 ```
 
-> Note: par défaut pour rockylinux9, BOX_DISTRO="rockylinux/9" et BOX_DISTRO_VERSION="5.0.0" 
+> Note: By default for rockylinux9, BOX_DISTRO="rockylinux/9" and BOX_DISTRO_VERSION="6.0.0" 
 
-- pour ubuntu24.04
+- for ubuntu24.04
 
 ```
 BOX_DISTRO="bento/ubuntu-24.04" BOX_DISTRO_VERSION="202502.21.0" vagrant up
-```
-
-- pour ubuntu22.04
-
-```
-BOX_DISTRO="bento/ubuntu-22.04" BOX_DISTRO_VERSION="202407.23.0" vagrant up
 ```
 
 - pour debian12
 
 ```
 BOX_DISTRO="generic/debian12" BOX_DISTRO_VERSION="4.3.12" vagrant up
-```
-
-- pour debian11
-
-```
-BOX_DISTRO="generic/debian11" BOX_DISTRO_VERSION="4.3.12" vagrant up
 ```

@@ -1,0 +1,256 @@
+---
+# ---------------------------------------------------------------------------
+# Internal role constants. Everything here is prefixed with `_k8s_` and is not
+# meant to be overridden by role users.
+# ---------------------------------------------------------------------------
+
+_k8s_supported_cni:
+  - calico
+  - cilium
+
+_k8s_supported_roles:
+  - primary_control_plane
+  - secondary_control_plane
+  - node
+
+# Minimum Kubernetes minor version supported by this role.
+_k8s_min_version: "1.30"
+
+# Calico nftables dataplane requirements.
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/nftables
+_k8s_calico_min_kernel: "5.13"
+_k8s_calico_min_nft: "1.0.1"
+# kube-proxy nftables mode: beta (on by default) in 1.31, GA in 1.33.
+_k8s_calico_min_k8s: "1.31"
+
+# Cilium requirements.
+# https://docs.cilium.io/en/stable/operations/system_requirements/
+_k8s_cilium_min_kernel: "5.10"
+_k8s_cilium_required_kernel_options:
+  - CONFIG_BPF
+  - CONFIG_BPF_SYSCALL
+  - CONFIG_BPF_JIT
+  - CONFIG_BPF_EVENTS
+  - CONFIG_CGROUPS
+  - CONFIG_CGROUP_BPF
+  - CONFIG_NET_CLS_BPF
+  - CONFIG_NET_CLS_ACT
+  - CONFIG_NET_SCH_INGRESS
+  - CONFIG_PERF_EVENTS
+  - CONFIG_CRYPTO_SHA1
+  - CONFIG_CRYPTO_USER_API_HASH
+  - CONFIG_FIB_RULES
+
+# Normalised x.y.z kernel version, e.g. "6.8.0" out of "6.8.0-136-generic".
+_k8s_kernel_version: '{{ ansible_facts.kernel | regex_search("^[0-9]+\.[0-9]+\.[0-9]+") }}'
+
+# RHEL 8 ships a 4.18 kernel carrying the required eBPF backports, so the
+# generic kernel version gate does not apply there.
+_k8s_kernel_check_waived: >-
+  {{ ansible_facts.os_family == 'RedHat' and ansible_facts.distribution_major_version == '8' }}
+
+# ---------------------------------------------------------------------------
+# Package repositories
+# ---------------------------------------------------------------------------
+_k8s_repo_flavour: "{{ 'deb' if ansible_facts.os_family == 'Debian' else 'rpm' }}"
+
+_k8s_upstream_baseurl:
+  kubernetes: "https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/{{ _k8s_repo_flavour }}/"
+  crio: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v{{ kubernetes_version }}/{{ _k8s_repo_flavour }}/"
+
+_k8s_repo_key_suffix: "{{ 'Release.key' if _k8s_repo_flavour == 'deb' else 'repodata/repomd.xml.key' }}"
+
+_k8s_repo_custom: "{{ kubernetes_package_source == 'custom' }}"
+
+# Effective base URL of each repository, honouring the custom repository mode.
+_k8s_repo_baseurl:
+  kubernetes: >-
+    {{ kubernetes_package_repositories.kubernetes.baseurl
+       if _k8s_repo_custom | bool else _k8s_upstream_baseurl.kubernetes }}
+  crio: >-
+    {{ kubernetes_package_repositories.crio.baseurl
+       if _k8s_repo_custom | bool else _k8s_upstream_baseurl.crio }}
+
+# Effective GPG key URL of each repository. Empty when the key is provided
+# inline through `gpg_key_content`, or when signature checking is disabled.
+_k8s_repo_key_url:
+  kubernetes: >-
+    {{ kubernetes_package_repositories.kubernetes.gpg_key_url
+       if _k8s_repo_custom | bool
+       else _k8s_upstream_baseurl.kubernetes ~ _k8s_repo_key_suffix }}
+  crio: >-
+    {{ kubernetes_package_repositories.crio.gpg_key_url
+       if _k8s_repo_custom | bool
+       else _k8s_upstream_baseurl.crio ~ _k8s_repo_key_suffix }}
+
+_k8s_kubernetes_packages:
+  - kubelet
+  - kubeadm
+  - kubectl
+
+# ---------------------------------------------------------------------------
+# kubeadm
+# ---------------------------------------------------------------------------
+# InitConfiguration/ClusterConfiguration API: v1beta4 exists since Kubernetes
+# 1.31, older releases only understand v1beta3.
+_k8s_kubeadm_api_version: "{{ 'v1beta4' if kubernetes_version is version('1.31', '>=') else 'v1beta3' }}"
+
+# A label key is an optional DNS subdomain prefix, a slash, then a name of at
+# most 63 characters made of alphanumerics, dashes, underscores and dots, and
+# starting and ending with an alphanumeric. An empty value disables labelling
+# altogether and is therefore valid too. Checked in the preflight rather than
+# discovered by kubectl at the very end of an otherwise successful install.
+_k8s_node_role_label_valid: >-
+  {{ kubernetes_node_role_label | length == 0
+     or kubernetes_node_role_label is match('^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?[A-Za-z0-9]([-A-Za-z0-9_.]{0,61}[A-Za-z0-9])?$') }}
+
+_k8s_kubeadm_config_file: "/etc/kubernetes/kubeadm-config.yaml"
+_k8s_admin_kubeconfig: "/etc/kubernetes/admin.conf"
+_k8s_kubelet_kubeconfig: "/etc/kubernetes/kubelet.conf"
+_k8s_crio_socket: "unix:///var/run/crio/crio.sock"
+
+# ---------------------------------------------------------------------------
+# Helm and CNI settings
+#
+# Reference values of `kubernetes_helm`, `kubernetes_calico` and
+# `kubernetes_cilium`. Ansible replaces a dictionary variable instead of merging
+# it, so a caller setting only a couple of keys would otherwise drop every other
+# one. The role therefore never reads the public dictionaries directly, it reads
+# the merged `_k8s_helm`, `_k8s_calico` and `_k8s_cilium` below.
+# ---------------------------------------------------------------------------
+_k8s_helm_defaults:
+  version: "3.21.3"
+  archive_url: ""
+  checksum: ""
+  binary_path: "/usr/local/bin/helm"
+
+_k8s_calico_defaults:
+  version: "v3.32.1"
+  namespace: "tigera-operator"
+  chart_repo_url: "https://docs.tigera.io/calico/charts"
+  chart_ref: ""
+  crds_chart_ref: ""
+  image_registry: ""
+  image_path: ""
+  image_pull_secret: ""
+  encapsulation: "VXLANCrossSubnet"
+  bgp: "Disabled"
+  wireguard_enabled: false
+  api_server: true
+  block_size: 26
+  values: {}
+
+_k8s_cilium_defaults:
+  version: "1.20.0"
+  namespace: "kube-system"
+  chart_repo_url: "https://helm.cilium.io"
+  chart_ref: ""
+  image_registry: ""
+  kube_proxy_replacement: true
+  routing_mode: "tunnel"
+  tunnel_protocol: "vxlan"
+  wireguard_enabled: false
+  hubble_enabled: false
+  values: {}
+
+_k8s_helm: "{{ _k8s_helm_defaults | combine(kubernetes_helm | default({}, true)) }}"
+_k8s_calico: "{{ _k8s_calico_defaults | combine(kubernetes_calico | default({}, true)) }}"
+_k8s_cilium: "{{ _k8s_cilium_defaults | combine(kubernetes_cilium | default({}, true)) }}"
+
+# Cilium in kube-proxy replacement mode owns service load balancing, so kubeadm
+# must not deploy the kube-proxy addon at all.
+_k8s_skip_kube_proxy: >-
+  {{ kubernetes_cni == 'cilium' and _k8s_cilium.kube_proxy_replacement | bool }}
+
+# Calico is only ever coupled with the nftables dataplane, which mandates a
+# kube-proxy running in nftables mode as well.
+_k8s_kube_proxy_mode: >-
+  {{ 'nftables'
+     if (kubernetes_cni == 'calico' or _k8s_kernel_version is version('5.13', '>='))
+     else 'iptables' }}
+
+# ---------------------------------------------------------------------------
+# Cilium firewall ports
+#
+# Cilium only: with Calico the host firewall is disabled rather than configured,
+# see tasks/setup/firewall.yml, so no port list is derived from it. The ports
+# Calico needs behind an external firewall are documented in README.md.
+# ---------------------------------------------------------------------------
+_k8s_cilium_tcp_ports: >-
+  {{ ['4240'] + (['4244', '4245'] if _k8s_cilium.hubble_enabled | bool else []) }}
+
+_k8s_cilium_udp_ports: >-
+  {{ ([] if _k8s_cilium.routing_mode != 'tunnel'
+       else ['8472'] if _k8s_cilium.tunnel_protocol == 'vxlan'
+       else ['6081'])
+     + (['51871'] if _k8s_cilium.wireguard_enabled | bool else []) }}
+
+# Everything firewalld and ufw open on this node, port/proto formatted.
+_k8s_open_ports: >-
+  {{ (((kubernetes_control_plane_ports
+         if kubernetes_role in ['primary_control_plane', 'secondary_control_plane']
+         else kubernetes_node_ports)
+        + _k8s_cilium_tcp_ports + kubernetes_extra_tcp_ports)
+       | map('regex_replace', '$', '/tcp') | list)
+      + ((_k8s_cilium_udp_ports + kubernetes_extra_udp_ports)
+         | map('regex_replace', '$', '/udp') | list) | unique }}
+
+# IPIP encapsulation rides on IP protocol 4, which drives the ipip module below.
+# No firewall rule is derived from it: with Calico the host firewall is disabled
+# outright, see tasks/setup/firewall.yml.
+_k8s_calico_ipip: >-
+  {{ kubernetes_cni == 'calico' and 'ipip' in _k8s_calico.encapsulation | lower }}
+
+# Interfaces Cilium drives and that firewalld must not filter. Calico has no
+# equivalent list, the host firewall being disabled there.
+_k8s_cilium_interfaces: >-
+  {{ ['cilium_host', 'cilium_net', 'cilium_vxlan', 'cilium_geneve', 'lxc+']
+     + (['cilium_wg0'] if _k8s_cilium.wireguard_enabled | bool else []) }}
+
+# NetworkManager takes over any interface it does not know about, which tears
+# down the CNI datapath on reload. Interface patterns follow the keyfile syntax.
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements
+_k8s_cni_unmanaged_devices: >-
+  {{ ['interface-name:cali*', 'interface-name:tunl*',
+      'interface-name:vxlan.calico', 'interface-name:vxlan-v6.calico',
+      'interface-name:wireguard.cali', 'interface-name:wg-v6.cali']
+     if kubernetes_cni == 'calico'
+     else ['interface-name:cilium_*', 'interface-name:lxc*'] }}
+
+# Kernel modules the datapath needs. Calico and Cilium autoload most of them,
+# but a minimal image offers no such guarantee and nothing makes it persistent.
+_k8s_vxlan_used: >-
+  {{ ('vxlan' in _k8s_calico.encapsulation | lower)
+     if kubernetes_cni == 'calico'
+     else (_k8s_cilium.routing_mode == 'tunnel' and _k8s_cilium.tunnel_protocol == 'vxlan') }}
+
+_k8s_wireguard_used: >-
+  {{ (_k8s_calico if kubernetes_cni == 'calico' else _k8s_cilium).wireguard_enabled }}
+
+_k8s_geneve_used: >-
+  {{ kubernetes_cni == 'cilium'
+     and _k8s_cilium.routing_mode == 'tunnel'
+     and _k8s_cilium.tunnel_protocol == 'geneve' }}
+
+_k8s_kernel_modules: >-
+  {{ ['overlay', 'br_netfilter']
+     + (['nf_tables'] if kubernetes_cni == 'calico' else [])
+     + (['ipip'] if _k8s_calico_ipip | bool else [])
+     + (['vxlan'] if _k8s_vxlan_used | bool else [])
+     + (['geneve'] if _k8s_geneve_used | bool else [])
+     + (['wireguard'] if _k8s_wireguard_used | bool else []) }}
+
+# ---------------------------------------------------------------------------
+# Helm
+# ---------------------------------------------------------------------------
+_k8s_helm_arch: >-
+  {{ {'x86_64': 'amd64', 'aarch64': 'arm64', 'ppc64le': 'ppc64le', 's390x': 's390x'}[ansible_facts.architecture]
+     | default('amd64') }}
+
+_k8s_cni_values_file: "/etc/kubernetes/cni-values.yaml"
+_k8s_calico_render_dir: "/etc/kubernetes/calico-crds"
+
+_k8s_helm_archive_url: >-
+  {{ _k8s_helm.archive_url
+     if _k8s_helm.archive_url | length > 0
+     else 'https://get.helm.sh/helm-v' ~ _k8s_helm.version ~ '-linux-' ~ _k8s_helm_arch ~ '.tar.gz' }}

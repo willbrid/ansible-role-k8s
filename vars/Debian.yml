@@ -1,2 +1,15 @@
 ---
 kubelet_config_sourced_file: "/etc/default/kubelet"
+
+# Packages required before any repository can be configured. python3-debian is
+# mandatory for ansible.builtin.deb822_repository.
+_k8s_bootstrap_packages:
+  - apt-transport-https
+  - ca-certificates
+  - curl
+  - gnupg
+  - python3-debian
+  - nftables
+  - ufw
+
+_k8s_crio_package: cri-o

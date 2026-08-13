@@ -1,2 +1,13 @@
 ---
 kubelet_config_sourced_file: "/etc/sysconfig/kubelet"
+
+_k8s_bootstrap_packages:
+  - ca-certificates
+  - curl
+  - container-selinux
+  - firewalld
+  - nftables
+  - python3-libselinux
+  - python3-policycoreutils
+
+_k8s_crio_package: cri-o

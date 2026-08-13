@@ -1,0 +1,37 @@
+---
+# Throwaway troubleshooting pod: netshoot carries dig, curl, tcpdump, nmap,
+# iperf3, conntrack, ss and the usual network toolbox.
+#
+#   kubectl apply -f netshoot-pod.yaml
+#   kubectl exec -it netshoot -- bash
+#   kubectl delete -f netshoot-pod.yaml
+#
+# The container sleeps rather than serving anything: the point is to get a shell
+# with a pod IP from the CNI, on the pod network being debugged.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netshoot
+  labels:
+    app: netshoot
+spec:
+  # Nothing depends on this pod, so let it die rather than crash-loop.
+  restartPolicy: Never
+  # Freed by hand once the investigation is over, but capped in case it is not.
+  terminationGracePeriodSeconds: 5
+  containers:
+    - name: netshoot
+      image: nicolaka/netshoot:v0.13
+      command: ["sleep", "infinity"]
+      resources:
+        requests:
+          cpu: 50m
+          memory: 64Mi
+        limits:
+          cpu: 500m
+          memory: 256Mi
+      securityContext:
+        # tcpdump, ping and nmap need raw sockets; NET_ADMIN lets you read the
+        # pod side of the datapath (ip route, iptables -L, conntrack).
+        capabilities:
+          add: ["NET_ADMIN", "NET_RAW"]

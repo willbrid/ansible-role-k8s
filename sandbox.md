@@ -1,5 +1,7 @@
 # Sandbox with VirtualBox 7.0.24
 
+This page builds the virtual machines by hand, to be paired with the playbooks of the [Example Playbook](README.md#example-playbook) section. For a sandbox that is already assembled, with its inventory generator, its scenario files and its verification playbooks, use [examples/](examples) instead.
+
 ```bash
 mkdir -p $HOME/install-k8s && cd $HOME/install-k8s
 ```
@@ -23,8 +25,8 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vbguest.no_remote = true
   config.vbguest.iso_path = "./VBoxGuestAdditions_7.0.24.iso"
 
-  box_distro = ENV['BOX_DISTRO'] || "rockylinux/9"
-  box_version = ENV['BOX_DISTRO_VERSION'] || "6.0.0"
+  box_distro = ENV['BOX_DISTRO'] || "bento/rockylinux-9"
+  box_version = ENV['BOX_DISTRO_VERSION'] || "202510.26.0"
 
   # General Vagrant VM configuration
   config.ssh.insert_key = false
@@ -51,7 +53,11 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 end
 ```
 
-To boot the machines according to the Rocky Linux 9, Debian 12, Debian 11, Ubuntu 24.04, Ubuntu 22.04 distributions, proceed as follows:
+To boot the machines according to the Rocky Linux 9, Debian 12, Ubuntu 24.04, Ubuntu 22.04 distributions, proceed as follows:
+
+> Note: Calico is only installed with the nftables dataplane, which requires a kernel >= 5.13. Ubuntu 22.04 ships a 5.15 kernel and Debian 12 a 6.1 kernel, both are fine, but Debian 11 (5.10) is rejected by the preflight checks. Use `kubernetes_cni: cilium` there, or pick a more recent box.
+
+> Note: the preflight also requires 10 GB free under `/var`, which rules out some boxes. The official `rockylinux/9` box only carries a 10 GB disk, leaving about 4.4 GB free, hence `bento/rockylinux-9` above. Its disk is a VMDK, so Vagrant cannot grow it in place either. Check any new box with `df -h /var` before running the playbook.
 
 - for rockylinux9
 
@@ -59,7 +65,7 @@ To boot the machines according to the Rocky Linux 9, Debian 12, Debian 11, Ubunt
 vagrant up
 ```
 
-> Note: By default for rockylinux9, BOX_DISTRO="rockylinux/9" and BOX_DISTRO_VERSION="6.0.0" 
+> Note: By default for rockylinux9, BOX_DISTRO="bento/rockylinux-9" and BOX_DISTRO_VERSION="202510.26.0" 
 
 - for ubuntu24.04
 

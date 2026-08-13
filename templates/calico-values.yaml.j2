@@ -1,0 +1,40 @@
+{{ ansible_managed | comment }}
+---
+installation:
+  enabled: true
+{% if _k8s_calico.image_registry | length > 0 %}
+  registry: {{ _k8s_calico.image_registry }}
+{% endif %}
+{% if _k8s_calico.image_path | length > 0 %}
+  imagePath: {{ _k8s_calico.image_path }}
+{% endif %}
+{% if _k8s_calico.image_pull_secret | length > 0 %}
+  imagePullSecrets:
+    - name: {{ _k8s_calico.image_pull_secret }}
+{% endif %}
+  cni:
+    type: Calico
+    ipam:
+      type: Calico
+  calicoNetwork:
+    # This role only ever couples Calico with the nftables dataplane.
+    linuxDataplane: Nftables
+    bgp: {{ _k8s_calico.bgp }}
+    ipPools:
+      - name: default-ipv4-ippool
+        cidr: {{ kubernetes_pod_network_cidr }}
+        encapsulation: {{ _k8s_calico.encapsulation }}
+        natOutgoing: Enabled
+        nodeSelector: all()
+        blockSize: {{ _k8s_calico.block_size }}
+
+apiServer:
+  enabled: {{ _k8s_calico.api_server | bool | lower }}
+
+{% if _k8s_calico.image_registry | length > 0 %}
+tigeraOperator:
+  registry: {{ _k8s_calico.image_registry }}
+
+calicoctl:
+  image: {{ _k8s_calico.image_registry }}/calico/ctl
+{% endif %}

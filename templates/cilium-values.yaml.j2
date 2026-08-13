@@ -1,0 +1,78 @@
+{{ ansible_managed | comment }}
+{% set registry = _k8s_cilium.image_registry %}
+---
+ipam:
+  mode: kubernetes
+
+k8s:
+  requireIPv4PodCIDR: true
+
+ipv4:
+  enabled: true
+
+# Cilium derives the pod CIDRs from the Kubernetes node objects, which kubeadm
+# fills in from the podSubnet of the cluster configuration.
+{% if _k8s_cilium.routing_mode == 'tunnel' %}
+routingMode: tunnel
+tunnelProtocol: {{ _k8s_cilium.tunnel_protocol }}
+{% else %}
+routingMode: native
+autoDirectNodeRoutes: true
+ipv4NativeRoutingCIDR: {{ kubernetes_pod_network_cidr }}
+{% endif %}
+
+kubeProxyReplacement: {{ _k8s_cilium.kube_proxy_replacement | bool | lower }}
+{% if _k8s_cilium.kube_proxy_replacement | bool %}
+k8sServiceHost: {{ kubernetes_control_plane_endpoint }}
+k8sServicePort: {{ kubernetes_control_plane_port }}
+{% endif %}
+
+{% if _k8s_cilium.wireguard_enabled | bool %}
+encryption:
+  enabled: true
+  type: wireguard
+{% endif %}
+
+hubble:
+  enabled: {{ _k8s_cilium.hubble_enabled | bool | lower }}
+{% if _k8s_cilium.hubble_enabled | bool %}
+  relay:
+    enabled: true
+{% if registry | length > 0 %}
+    image:
+      repository: {{ registry }}/hubble-relay
+      useDigest: false
+{% endif %}
+{% endif %}
+
+{% if registry | length > 0 %}
+# Every image is pulled from the internal mirror instead of quay.io/cilium.
+image:
+  repository: {{ registry }}/cilium
+  useDigest: false
+
+operator:
+  image:
+    repository: {{ registry }}/operator
+    useDigest: false
+
+envoy:
+  image:
+    repository: {{ registry }}/cilium-envoy
+    useDigest: false
+
+certgen:
+  image:
+    repository: {{ registry }}/certgen
+    useDigest: false
+
+preflight:
+  image:
+    repository: {{ registry }}/cilium
+    useDigest: false
+
+nodeinit:
+  image:
+    repository: {{ registry }}/startup-script
+    useDigest: false
+{% endif %}

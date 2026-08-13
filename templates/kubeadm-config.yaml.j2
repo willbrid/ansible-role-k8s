@@ -1,0 +1,46 @@
+---
+{# The banner has to sit inside the first document: kubeadm splits the file on
+   `---` and rejects the leading chunk as a document without kind/apiVersion. #}
+{{ ansible_managed | comment }}
+apiVersion: kubeadm.k8s.io/{{ _k8s_kubeadm_api_version }}
+kind: InitConfiguration
+localAPIEndpoint:
+  advertiseAddress: {{ kubernetes_control_plane_ip }}
+  bindPort: {{ kubernetes_control_plane_port }}
+nodeRegistration:
+  criSocket: {{ _k8s_crio_socket }}
+{% if _k8s_kubeadm_api_version == 'v1beta4' %}
+  kubeletExtraArgs:
+    - name: node-ip
+      value: "{{ kubernetes_node_ip }}"
+{% else %}
+  kubeletExtraArgs:
+    node-ip: "{{ kubernetes_node_ip }}"
+{% endif %}
+---
+apiVersion: kubeadm.k8s.io/{{ _k8s_kubeadm_api_version }}
+kind: ClusterConfiguration
+kubernetesVersion: v{{ kubernetes_patch_version }}
+controlPlaneEndpoint: "{{ kubernetes_control_plane_endpoint }}:{{ kubernetes_control_plane_port }}"
+{% if kubernetes_image_repository | length > 0 %}
+imageRepository: {{ kubernetes_image_repository }}
+{% endif %}
+networking:
+  podSubnet: {{ kubernetes_pod_network_cidr }}
+  serviceSubnet: {{ kubernetes_service_cidr }}
+  dnsDomain: cluster.local
+{% if not _k8s_skip_kube_proxy | bool %}
+---
+apiVersion: kubeproxy.config.k8s.io/v1alpha1
+kind: KubeProxyConfiguration
+{# Calico is always deployed with the nftables dataplane, which requires
+   kube-proxy to program the very same packet filtering framework. #}
+mode: {{ _k8s_kube_proxy_mode }}
+{% endif %}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+cgroupDriver: systemd
+{% if _k8s_systemd_resolved | bool %}
+resolvConf: /run/systemd/resolve/resolv.conf
+{% endif %}

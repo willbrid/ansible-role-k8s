@@ -1,23 +1,13 @@
 ---
 argument_specs:
   main:
-    short_description: "Kubernetes installation for linux"
+    short_description: "Kubeadm based Kubernetes cluster installation"
     description:
-      - "Kubernetes installation for RedHat/Rocky and Debian/Ubuntu"
+      - "Installs and configures a multi node Kubernetes cluster on the RedHat and Debian families."
+      - "CRI-O is used as the container runtime."
+      - "Networking is provided either by Calico with the nftables dataplane, or by Cilium with the eBPF dataplane."
     author: "WillBrid"
     options:
-      kubernetes_version:
-        type: str
-        required: false
-        default: "1.29"
-        description:
-          - "kubernetes version in x.y form"
-      kubernetes_specific_version:
-        type: str
-        required: false
-        default: "1.29.13"
-        description:
-          - "kubernetes specific version in x.y.z form"
       kubernetes_role:
         type: str
         required: false
@@ -27,67 +17,456 @@ argument_specs:
           - "secondary_control_plane"
           - "node"
         description:
-          - "kubernetes node component role"
+          - "Role played by the host inside the cluster."
+
+      kubernetes_node_role_label:
+        type: str
+        required: false
+        default: "willbrid.k8s/role"
+        description:
+          - "Node label carrying kubernetes_role, so the bootstrap order stays readable from kubectl."
+          - "Kubernetes makes no difference between a primary and a secondary control plane by itself."
+          - "Set to an empty string to label nothing."
+
+      kubernetes_version:
+        type: str
+        required: false
+        default: "1.34"
+        description:
+          - "Kubernetes minor version in x.y form. Drives the package repositories. Minimum supported value is 1.30."
+
+      kubernetes_patch_version:
+        type: str
+        required: false
+        default: "1.34.10"
+        description:
+          - "Exact Kubernetes package version in x.y.z form. Must belong to kubernetes_version."
+
       kubernetes_control_plane_ip:
         type: str
         required: true
         description:
-          - "kubernetes control plan ip"
+          - "IP address of the primary control plane node. Must also be an inventory host."
+
       kubernetes_control_plane_endpoint:
         type: str
         required: true
         description:
-          - "kubernetes control plan endpoint"
+          - "IP address or DNS name every node uses to reach the API server. Point it to a load balancer for a HA cluster."
+
+      kubernetes_control_plane_port:
+        type: int
+        required: false
+        default: 6443
+        description:
+          - "TCP port the API server listens on."
+
+      kubernetes_node_ip:
+        type: str
+        required: false
+        default: "{{ ansible_host | default(ansible_facts.default_ipv4.address) }}"
+        description:
+          - "IP address advertised by the kubelet of the current host."
+
+      kubernetes_kubeconfig_dir:
+        type: path
+        required: false
+        default: "/root/.kube"
+        description:
+          - "Directory receiving the administrator kubeconfig on the control plane nodes."
+
+      kubernetes_pod_network_cidr:
+        type: str
+        required: false
+        default: "172.16.0.0/16"
+        description:
+          - "IPv4 CIDR allocated to the pods. Also used to configure the CNI IP pool."
+
+      kubernetes_service_cidr:
+        type: str
+        required: false
+        default: "10.96.0.0/12"
+        description:
+          - "IPv4 CIDR allocated to the Kubernetes services."
+
+      kubernetes_image_repository:
+        type: str
+        required: false
+        default: ""
+        description:
+          - "Registry kubeadm pulls the control plane images from."
+          - "Leave empty to use registry.k8s.io, or set an internal mirror for an air-gapped installation."
+
+      kubernetes_package_source:
+        type: str
+        required: false
+        default: "internet"
+        choices:
+          - "internet"
+          - "custom"
+        description:
+          - "Where the Kubernetes and CRI-O packages come from."
+          - "internet uses the upstream repositories, custom uses the mirrors declared in kubernetes_package_repositories."
+
+      kubernetes_package_repositories:
+        type: dict
+        required: false
+        description:
+          - "Per repository configuration, only read when kubernetes_package_source is custom, except for gpg_check."
+        default:
+          kubernetes:
+            baseurl: ""
+            gpg_key_url: ""
+            gpg_key_content: ""
+            gpg_check: true
+          crio:
+            baseurl: ""
+            gpg_key_url: ""
+            gpg_key_content: ""
+            gpg_check: true
+        options:
+          kubernetes:
+            type: dict
+            required: false
+            description: "Mirror serving the kubelet, kubeadm and kubectl packages."
+            options:
+              baseurl:
+                type: str
+                required: false
+                default: ""
+                description: "Base URL of the repository, trailing slash included."
+              gpg_key_url:
+                type: str
+                required: false
+                default: ""
+                description: "URL of the ASCII armored signing key."
+              gpg_key_content:
+                type: str
+                required: false
+                default: ""
+                description: "Inline ASCII armored signing key. Takes precedence over gpg_key_url."
+              gpg_check:
+                type: bool
+                required: false
+                default: true
+                description: "Verify the package signatures."
+          crio:
+            type: dict
+            required: false
+            description: "Mirror serving the CRI-O packages."
+            options:
+              baseurl:
+                type: str
+                required: false
+                default: ""
+                description: "Base URL of the repository, trailing slash included."
+              gpg_key_url:
+                type: str
+                required: false
+                default: ""
+                description: "URL of the ASCII armored signing key."
+              gpg_key_content:
+                type: str
+                required: false
+                default: ""
+                description: "Inline ASCII armored signing key. Takes precedence over gpg_key_url."
+              gpg_check:
+                type: bool
+                required: false
+                default: true
+                description: "Verify the package signatures."
+
+      kubernetes_packages_hold:
+        type: bool
+        required: false
+        default: true
+        description:
+          - "Pin kubelet, kubeadm, kubectl and cri-o so a distribution upgrade never moves them."
+
+      kubernetes_cni:
+        type: str
+        required: false
+        default: "calico"
+        choices:
+          - "calico"
+          - "cilium"
+        description:
+          - "Network plugin to deploy. Calico is always installed with the nftables dataplane."
+
+      kubernetes_helm:
+        type: dict
+        required: false
+        description:
+          - "Helm client used to deploy the CNI on the primary control plane."
+          - "Only the keys set here are read, they are merged over the defaults of the individual options below."
+        default: {}
+        options:
+          version:
+            type: str
+            required: false
+            default: "3.21.3"
+            description: "Helm version to install."
+          archive_url:
+            type: str
+            required: false
+            default: ""
+            description: "Alternate URL of the Helm tarball. Leave empty to download it from get.helm.sh."
+          checksum:
+            type: str
+            required: false
+            default: ""
+            description: "Checksum of the tarball, in the algorithm:value form expected by get_url."
+          binary_path:
+            type: path
+            required: false
+            default: "/usr/local/bin/helm"
+            description: "Where the Helm binary is installed."
+
+      kubernetes_calico:
+        type: dict
+        required: false
+        description:
+          - "Calico configuration, only read when kubernetes_cni is calico."
+          - "Only the keys set here are read, they are merged over the defaults of the individual options below."
+        default: {}
+        options:
+          version:
+            type: str
+            required: false
+            default: "v3.32.1"
+            description: "Version of the tigera-operator and CRD charts."
+          namespace:
+            type: str
+            required: false
+            default: "tigera-operator"
+            description: "Namespace hosting the Tigera operator."
+          chart_repo_url:
+            type: str
+            required: false
+            default: "https://docs.tigera.io/calico/charts"
+            description: "Helm repository serving the Calico charts. Point it to an internal mirror for an air-gapped installation."
+          chart_ref:
+            type: str
+            required: false
+            default: ""
+            description: "Direct reference to the tigera-operator chart, such as a local path, a .tgz file or an oci:// URL. Bypasses chart_repo_url."
+          crds_chart_ref:
+            type: str
+            required: false
+            default: ""
+            description: "Direct reference to the crd.projectcalico.org.v1 chart. Bypasses chart_repo_url."
+          image_registry:
+            type: str
+            required: false
+            default: ""
+            description: "Registry the Calico images are pulled from. Leave empty to use the upstream registries."
+          image_path:
+            type: str
+            required: false
+            default: ""
+            description: "Path prefix appended to image_registry, when the mirror does not reproduce the upstream layout."
+          image_pull_secret:
+            type: str
+            required: false
+            default: ""
+            description: "Name of an existing pull secret giving access to the mirror."
+          encapsulation:
+            type: str
+            required: false
+            default: "VXLANCrossSubnet"
+            choices:
+              - "VXLAN"
+              - "VXLANCrossSubnet"
+              - "IPIP"
+              - "IPIPCrossSubnet"
+              - "None"
+            description: "Overlay encapsulation of the default IP pool."
+          bgp:
+            type: str
+            required: false
+            default: "Disabled"
+            choices:
+              - "Enabled"
+              - "Disabled"
+            description: "BGP routing. Keep it disabled when relying on VXLAN encapsulation."
+          wireguard_enabled:
+            type: bool
+            required: false
+            default: false
+            description: "Encrypt the pod to pod traffic with WireGuard."
+          api_server:
+            type: bool
+            required: false
+            default: true
+            description: "Deploy the Calico API server, which exposes the Calico resources through kubectl."
+          block_size:
+            type: int
+            required: false
+            default: 26
+            description: "Size of the IPAM blocks carved out of the pod CIDR."
+          values:
+            type: dict
+            required: false
+            default: {}
+            description: "Extra Helm values merged on top of the ones rendered by the role."
+
+      kubernetes_cilium:
+        type: dict
+        required: false
+        description:
+          - "Cilium configuration, only read when kubernetes_cni is cilium."
+          - "Only the keys set here are read, they are merged over the defaults of the individual options below."
+        default: {}
+        options:
+          version:
+            type: str
+            required: false
+            default: "1.20.0"
+            description: "Version of the cilium chart."
+          namespace:
+            type: str
+            required: false
+            default: "kube-system"
+            description: "Namespace hosting the Cilium agent and operator."
+          chart_repo_url:
+            type: str
+            required: false
+            default: "https://helm.cilium.io"
+            description: "Helm repository serving the cilium chart. Point it to an internal mirror for an air-gapped installation."
+          chart_ref:
+            type: str
+            required: false
+            default: ""
+            description: "Direct reference to the cilium chart, such as a local path, a .tgz file or an oci:// URL. Bypasses chart_repo_url."
+          image_registry:
+            type: str
+            required: false
+            default: ""
+            description: "Replacement for the quay.io/cilium image prefix, for example registry.corp.local/cilium."
+          kube_proxy_replacement:
+            type: bool
+            required: false
+            default: true
+            description:
+              - "Let Cilium replace kube-proxy. kubeadm then skips the kube-proxy addon entirely."
+              - "Requires the cgroup v2 unified hierarchy."
+          routing_mode:
+            type: str
+            required: false
+            default: "tunnel"
+            choices:
+              - "tunnel"
+              - "native"
+            description: "Encapsulated routing, or native routing when every node shares an L2 segment."
+          tunnel_protocol:
+            type: str
+            required: false
+            default: "vxlan"
+            choices:
+              - "vxlan"
+              - "geneve"
+            description: "Encapsulation protocol, only read when routing_mode is tunnel."
+          wireguard_enabled:
+            type: bool
+            required: false
+            default: false
+            description: "Encrypt the pod to pod traffic with WireGuard."
+          hubble_enabled:
+            type: bool
+            required: false
+            default: false
+            description: "Deploy Hubble and its relay for network observability."
+          values:
+            type: dict
+            required: false
+            default: {}
+            description: "Extra Helm values merged on top of the ones rendered by the role."
+
+      kubernetes_firewall_manage:
+        type: bool
+        required: false
+        default: true
+        description:
+          - "Let the role drive firewalld on the RedHat family and ufw on the Debian family."
+
       kubernetes_control_plane_ports:
         type: list
         required: false
         elements: str
         default:
-          - '6443'
-          - '2379-2380'
-          - '10250'
-          - '10257'
-          - '10259'
+          - "6443"
+          - "2379-2380"
+          - "10250"
+          - "10257"
+          - "10259"
         description:
-          - "kubernetes control plane ports to allow in firewall"
+          - "TCP ports opened on the control plane nodes."
+
       kubernetes_node_ports:
         type: list
         required: false
         elements: str
         default:
-          - '10250'
-          - '10256'
-          - '30000-32767'
+          - "10250"
+          - "10256"
+          - "30000-32767"
         description:
-          - "kubernetes node ports to allow in firewall"
-      kubernetes_cni_network:
-        type: dict
+          - "TCP ports opened on the worker nodes."
+
+      kubernetes_extra_tcp_ports:
+        type: list
         required: false
-        default:
-          cni: 'calico'
-          cidr: '172.16.0.0/16'
-          pod_host_port: "179"
-          manifest: "https://docs.projectcalico.org/manifests/calico.yaml"
+        elements: str
+        default: []
         description:
-          - "kubernetes cni network configuration"
-        options:
-          cni:
-            type: str
-            required: false
-            default: "calico"
-            description: "cni type"
-          cidr:
-            type: str
-            required: false
-            default: "172.16.0.0/16"
-            description: "cni network cidr"
-          pod_host_port:
-            type: str
-            required: false
-            default: "179"
-            description: "cni pods communication listen port"
-          manifest:
-            type: str
-            required: false
-            default: "https://docs.projectcalico.org/manifests/calico.yaml"
-            description: "cni manifest link to install"
+          - "Additional TCP ports opened on every node."
+
+      kubernetes_extra_udp_ports:
+        type: list
+        required: false
+        elements: str
+        default: []
+        description:
+          - "Additional UDP ports opened on every node. The ports required by the selected CNI are already handled by the role."
+
+      kubernetes_disable_swap:
+        type: bool
+        required: false
+        default: true
+        description:
+          - "Turn swap off and comment out the swap entries of /etc/fstab."
+
+      kubernetes_selinux_permissive:
+        type: bool
+        required: false
+        default: true
+        description:
+          - "Switch SELinux to permissive on the RedHat family, as expected by kubeadm."
+
+      kubernetes_preflight_enabled:
+        type: bool
+        required: false
+        default: true
+        description:
+          - "Check the host and CNI requirements before touching the system."
+
+      kubernetes_preflight_min_cpu:
+        type: int
+        required: false
+        default: 2
+        description:
+          - "Minimum number of vCPU a node must expose."
+
+      kubernetes_preflight_min_memory_mb:
+        type: int
+        required: false
+        default: 1700
+        description:
+          - "Minimum amount of RAM in MB a node must expose."
+
+      kubernetes_preflight_min_free_disk_mb:
+        type: int
+        required: false
+        default: 10240
+        description:
+          - "Minimum free space in MB required on the filesystem hosting /var."

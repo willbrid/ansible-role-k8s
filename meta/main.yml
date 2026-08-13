@@ -3,28 +3,34 @@ galaxy_info:
   author: William Bridge
   role_name: k8s
   namespace: willbrid
-  description: Kubernetes installation for RedHat/Rocky and Debian/Ubuntu
-  license: license MIT
-  min_ansible_version: "2.16"
+  description: >-
+    Kubeadm based Kubernetes cluster installation for RedHat/Rocky and Debian/Ubuntu,
+    with CRI-O runtime and Calico (nftables dataplane) or Cilium (eBPF) CNI.
+  license: MIT
+  min_ansible_version: "2.18"
   platforms:
-    - name: Rocky
+    - name: EL
       versions:
-        - "9.2"
+        - "9"
+        - "10"
     - name: Debian
       versions:
         - "bookworm"
-        - "bullseye"
+        - "trixie"
     - name: Ubuntu
       versions:
-        - "noble"
         - "jammy"
+        - "noble"
   galaxy_tags:
     - kubernetes
     - k8s
+    - kubeadm
     - orchestration
-    - system
     - container
     - crio
-    - kudeadm
+    - calico
+    - cilium
+    - nftables
+    - ebpf
 
 dependencies: []

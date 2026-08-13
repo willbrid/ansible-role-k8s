@@ -1,0 +1,48 @@
+---
+- name: Install the inline repository signing keys
+  ansible.builtin.copy:
+    content: "{{ kubernetes_package_repositories[item].gpg_key_content }}"
+    dest: "/etc/pki/rpm-gpg/RPM-GPG-KEY-{{ item }}-role"
+    owner: root
+    group: root
+    mode: "0644"
+  loop:
+    - kubernetes
+    - crio
+  when: kubernetes_package_repositories[item].gpg_key_content | length > 0
+
+- name: Configure the Kubernetes yum repository
+  ansible.builtin.yum_repository:
+    name: kubernetes
+    description: Kubernetes {{ kubernetes_version }}
+    baseurl: "{{ _k8s_repo_baseurl.kubernetes }}"
+    enabled: true
+    gpgcheck: "{{ kubernetes_package_repositories.kubernetes.gpg_check | bool }}"
+    gpgkey: "{{ _k8s_kubernetes_gpgkey | default(omit) }}"
+    exclude: "{{ (_k8s_kubernetes_packages + ['cri-tools', 'kubernetes-cni']) | join(' ') if kubernetes_packages_hold | bool else omit }}"
+    mode: "0644"
+  vars:
+    _k8s_kubernetes_gpgkey: >-
+      {{ 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-kubernetes-role'
+         if kubernetes_package_repositories.kubernetes.gpg_key_content | length > 0
+         else _k8s_repo_key_url.kubernetes
+         if kubernetes_package_repositories.kubernetes.gpg_check | bool
+         else omit }}
+
+- name: Configure the CRI-O yum repository
+  ansible.builtin.yum_repository:
+    name: cri-o
+    description: CRI-O {{ kubernetes_version }}
+    baseurl: "{{ _k8s_repo_baseurl.crio }}"
+    enabled: true
+    gpgcheck: "{{ kubernetes_package_repositories.crio.gpg_check | bool }}"
+    gpgkey: "{{ _k8s_crio_gpgkey | default(omit) }}"
+    exclude: "{{ 'cri-o' if kubernetes_packages_hold | bool else omit }}"
+    mode: "0644"
+  vars:
+    _k8s_crio_gpgkey: >-
+      {{ 'file:///etc/pki/rpm-gpg/RPM-GPG-KEY-crio-role'
+         if kubernetes_package_repositories.crio.gpg_key_content | length > 0
+         else _k8s_repo_key_url.crio
+         if kubernetes_package_repositories.crio.gpg_check | bool
+         else omit }}

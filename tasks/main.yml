@@ -1,39 +1,67 @@
 ---
-- name: 'Check mandatory variables'
-  ansible.builtin.assert:
-    that:
-      - kubernetes_control_plane_ip is defined and kubernetes_control_plane_ip | length > 0
-      - kubernetes_control_plane_endpoint is defined and kubernetes_control_plane_endpoint | length > 0
-    fail_msg: "One or more mandatory variables are either undefined or empty."
+- name: Include OS family specific variables
+  ansible.builtin.include_vars: "{{ ansible_facts.os_family }}.yml"
+  tags:
+    - always
 
-- name: Force ansible_os_family to RedHat if it is Rocky
-  ansible.builtin.set_fact:
-    ansible_os_family: "RedHat"
-  when: ansible_os_family == "Rocky"
+- name: Run preflight checks
+  ansible.builtin.include_tasks:
+    file: preflight/main.yml
+    apply:
+      tags:
+        - preflight
+  tags:
+    - preflight
 
-- name: Include os specific variables
-  ansible.builtin.include_vars: "{{ ansible_os_family }}.yml"
+- name: Prepare the system
+  ansible.builtin.include_tasks: "setup/system-{{ ansible_facts.os_family }}.yml"
 
-- name: System setup
-  ansible.builtin.include_tasks: system-setup-{{ ansible_os_family }}.yml
+- name: Configure package repositories
+  ansible.builtin.include_tasks:
+    file: "setup/repositories-{{ ansible_facts.os_family }}.yml"
+    apply:
+      tags:
+        - packages
+  tags:
+    - packages
 
-- name: Cri-o setup
-  ansible.builtin.include_tasks: crio-setup-{{ ansible_os_family }}.yml
+- name: Prepare the kernel for Kubernetes
+  ansible.builtin.include_tasks: setup/kernel.yml
 
-- name: Kubernetes packages setup
-  ansible.builtin.include_tasks: k8s-packages-setup-{{ ansible_os_family }}.yml
+- name: Keep NetworkManager away from the CNI interfaces
+  ansible.builtin.include_tasks: setup/networkmanager.yml
 
-- name: Flush handlers
-  ansible.builtin.debug:
-    msg: "Executing all handlers"
+- name: Configure the host firewall
+  ansible.builtin.include_tasks: setup/firewall.yml
+  when: kubernetes_firewall_manage | bool
 
-- name: FLush handlers
+- name: Install the CRI-O container runtime
+  ansible.builtin.include_tasks: "setup/crio-{{ ansible_facts.os_family }}.yml"
+
+- name: Install the Kubernetes packages
+  ansible.builtin.include_tasks: "setup/k8s-packages-{{ ansible_facts.os_family }}.yml"
+
+- name: Apply pending system changes before bootstrapping the cluster
   ansible.builtin.meta: flush_handlers
 
-- name: Control plane setup
-  ansible.builtin.import_tasks: control-plane-setup.yml
-  when: kubernetes_role == 'primary_control_plane' or kubernetes_role == 'secondary_control_plane'
+- name: Bootstrap the control plane
+  ansible.builtin.include_tasks: cluster/control-plane.yml
+  when: kubernetes_role in ['primary_control_plane', 'secondary_control_plane']
 
-- name: Node setup
-  ansible.builtin.import_tasks: node-setup.yml
+- name: Join the worker node
+  ansible.builtin.include_tasks: cluster/node.yml
   when: kubernetes_role == 'node'
+
+- name: Record the installed role as a node label
+  ansible.builtin.include_tasks: cluster/node-label.yml
+  when: kubernetes_node_role_label | length > 0
+
+- name: Deploy the CNI
+  ansible.builtin.include_tasks:
+    file: cni/main.yml
+    apply:
+      tags:
+        - cni
+  when: kubernetes_role == 'primary_control_plane'
+  tags:
+    - cni

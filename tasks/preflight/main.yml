@@ -1,0 +1,16 @@
+---
+- name: Validate the role variables
+  ansible.builtin.import_tasks: variables.yml
+
+- name: Check the host requirements
+  when: kubernetes_preflight_enabled | bool
+  block:
+    - name: Check the requirements shared by every Kubernetes node
+      ansible.builtin.import_tasks: common.yml
+
+    - name: "Check the requirements specific to the selected CNI: {{ kubernetes_cni }}"
+      ansible.builtin.include_tasks:
+        file: "{{ kubernetes_cni }}.yml"
+        apply:
+          tags:
+            - preflight

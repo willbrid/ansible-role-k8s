@@ -1,0 +1,17 @@
+---
+- name: Install the Helm client
+  ansible.builtin.import_tasks: helm.yml
+
+- name: "Deploy the selected CNI: {{ kubernetes_cni }}"
+  ansible.builtin.include_tasks:
+    file: "{{ kubernetes_cni }}.yml"
+    apply:
+      tags:
+        - cni
+
+- name: Wait for the nodes to become ready
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+    wait --for=condition=Ready nodes --all --timeout=300s
+  register: _k8s_nodes_ready
+  changed_when: false

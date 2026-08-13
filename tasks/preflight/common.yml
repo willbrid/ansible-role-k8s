@@ -1,0 +1,94 @@
+---
+- name: Assert the distribution is supported
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.os_family in ['Debian', 'RedHat']
+      - ansible_facts.architecture in ['x86_64', 'aarch64', 'ppc64le', 's390x']
+    fail_msg: >-
+      Unsupported target: {{ ansible_facts.distribution }} {{ ansible_facts.distribution_version }}
+      on {{ ansible_facts.architecture }}. This role supports the Debian and RedHat
+      families on x86_64, aarch64, ppc64le and s390x.
+    quiet: true
+
+- name: Assert systemd is the init system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.service_mgr == 'systemd'
+    fail_msg: "kubelet and CRI-O require systemd, but the init system is '{{ ansible_facts.service_mgr }}'."
+    quiet: true
+
+- name: Assert the node is large enough
+  ansible.builtin.assert:
+    that:
+      - ansible_facts.processor_vcpus | int >= kubernetes_preflight_min_cpu | int
+      - ansible_facts.memtotal_mb | int >= kubernetes_preflight_min_memory_mb | int
+    fail_msg: >-
+      A Kubernetes node needs at least {{ kubernetes_preflight_min_cpu }} vCPU and
+      {{ kubernetes_preflight_min_memory_mb }} MB of RAM, this host has
+      {{ ansible_facts.processor_vcpus }} vCPU and {{ ansible_facts.memtotal_mb }} MB.
+    quiet: true
+
+- name: Collect the free space of the filesystem hosting /var
+  ansible.builtin.set_fact:
+    _k8s_var_free_mb: >-
+      {{ (ansible_facts.mounts
+          | selectattr('mount', 'in', ['/var/lib', '/var', '/'])
+          | sort(attribute='mount', reverse=true)
+          | map(attribute='size_available')
+          | first | default(0) | int / 1024 / 1024) | round | int }}
+
+- name: Assert enough free disk space is available under /var
+  ansible.builtin.assert:
+    that:
+      - _k8s_var_free_mb | int >= kubernetes_preflight_min_free_disk_mb | int
+    fail_msg: >-
+      Only {{ _k8s_var_free_mb }} MB are free on the filesystem hosting /var,
+      {{ kubernetes_preflight_min_free_disk_mb }} MB are required for the
+      container images and etcd data.
+    quiet: true
+
+- name: Assert the kernel version could be determined
+  ansible.builtin.assert:
+    that:
+      - _k8s_kernel_version | length > 0
+    fail_msg: "Unable to parse an x.y.z version out of the running kernel '{{ ansible_facts.kernel }}'."
+    quiet: true
+
+- name: Check whether the control plane node is reachable from the inventory
+  ansible.builtin.assert:
+    that:
+      - kubernetes_control_plane_ip in hostvars
+    fail_msg: >-
+      '{{ kubernetes_control_plane_ip }}' is not part of the inventory. Joining a
+      node delegates the `kubeadm token create` call to the primary control plane,
+      so that host must be reachable through the same inventory.
+    quiet: true
+  when: kubernetes_role != 'primary_control_plane'
+
+- name: Verify the package repositories are reachable
+  ansible.builtin.uri:
+    url: "{{ _k8s_repo_baseurl[item] }}"
+    method: HEAD
+    status_code: [200, 301, 302, 403]
+    timeout: 15
+  loop:
+    - kubernetes
+    - crio
+  register: _k8s_repo_reachable
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Assert the package repositories answered
+  ansible.builtin.assert:
+    that:
+      - item.status | default(0) | int > 0
+    fail_msg: >-
+      Repository '{{ _k8s_repo_baseurl[item.item] }}' is unreachable
+      ({{ item.msg | default('no answer') }}). In an air-gapped environment set
+      kubernetes_package_source to 'custom' and point
+      kubernetes_package_repositories.{{ item.item }}.baseurl to an internal mirror.
+    quiet: true
+  loop: "{{ _k8s_repo_reachable.results }}"
+  loop_control:
+    label: "{{ item.item }}"

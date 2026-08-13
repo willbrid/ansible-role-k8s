@@ -1,0 +1,24 @@
+---
+- name: Install the Kubernetes packages
+  ansible.builtin.dnf:
+    name: "{{ _k8s_kubernetes_packages | map('regex_replace', '$', '-' ~ kubernetes_patch_version) | list }}"
+    state: present
+    allow_downgrade: true
+    disable_excludes: "{{ 'kubernetes' if kubernetes_packages_hold | bool else omit }}"
+
+- name: Pin the kubelet node IP
+  ansible.builtin.lineinfile:
+    path: "{{ kubelet_config_sourced_file }}"
+    regexp: '^KUBELET_EXTRA_ARGS='
+    line: "KUBELET_EXTRA_ARGS='--node-ip={{ kubernetes_node_ip }}'"
+    state: present
+    create: true
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart kubelet
+
+- name: Ensure kubelet is enabled
+  ansible.builtin.systemd_service:
+    name: kubelet
+    enabled: true

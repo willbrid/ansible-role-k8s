@@ -1,0 +1,31 @@
+---
+- name: Detect systemd-resolved
+  ansible.builtin.stat:
+    path: /run/systemd/resolve/resolv.conf
+  register: _k8s_resolved_stub
+
+- name: Render the kubeadm configuration
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: "{{ _k8s_kubeadm_config_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+  vars:
+    _k8s_systemd_resolved: "{{ _k8s_resolved_stub.stat.exists }}"
+
+- name: Initialize the Kubernetes control plane
+  ansible.builtin.command:
+    argv: >-
+      {{ ['kubeadm', 'init', '--config', _k8s_kubeadm_config_file, '--upload-certs']
+         + (['--skip-phases=addon/kube-proxy'] if _k8s_skip_kube_proxy | bool else []) }}
+    creates: "{{ _k8s_admin_kubeconfig }}"
+  register: _k8s_kubeadm_init
+
+- name: Wait for the API server to become ready
+  ansible.builtin.command: "kubectl --kubeconfig {{ _k8s_admin_kubeconfig }} get --raw=/readyz"
+  register: _k8s_apiserver_readyz
+  until: _k8s_apiserver_readyz.stdout is defined and _k8s_apiserver_readyz.stdout == 'ok'
+  retries: 30
+  delay: 5
+  changed_when: false

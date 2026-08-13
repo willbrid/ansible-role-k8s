@@ -1,0 +1,18 @@
+---
+# The Calico nftables dataplane and a host firewall cannot share a machine.
+# Calico rewrites the nftables ruleset with a newer nft than the one packaged by
+# the distribution, and the host tooling then crashes reading it back: on Rocky
+# Linux 9.6, `nft list ruleset` segfaults once Calico is up, taking firewalld
+# down with it since firewalld calls the same libnftables. Tigera documents this
+# and asks for firewalld and iptables managers to be disabled.
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements
+#
+# Cilium drives its datapath from eBPF and leaves the host ruleset alone, so
+# firewalld and ufw keep working and are configured normally.
+- name: Disable the host firewall required by the Calico dataplane
+  ansible.builtin.include_tasks: firewall-disable.yml
+  when: kubernetes_cni == 'calico'
+
+- name: Configure the host firewall
+  ansible.builtin.include_tasks: firewall-configure.yml
+  when: kubernetes_cni != 'calico'

@@ -1,0 +1,86 @@
+---
+# https://docs.cilium.io/en/stable/operations/system_requirements/
+- name: Assert the kernel is recent enough for Cilium
+  ansible.builtin.assert:
+    that:
+      - _k8s_kernel_version is version(_k8s_cilium_min_kernel, '>=')
+    fail_msg: >-
+      Cilium requires a Linux kernel >= {{ _k8s_cilium_min_kernel }}, this host
+      runs {{ ansible_facts.kernel }}.
+    quiet: true
+  when: not _k8s_kernel_check_waived | bool
+
+- name: Locate the kernel configuration
+  ansible.builtin.stat:
+    path: "/boot/config-{{ ansible_facts.kernel }}"
+  register: _k8s_kernel_config_file
+
+- name: Check the kernel build options required by Cilium
+  when: _k8s_kernel_config_file.stat.exists
+  block:
+    - name: Read the kernel configuration
+      ansible.builtin.slurp:
+        src: "/boot/config-{{ ansible_facts.kernel }}"
+      register: _k8s_kernel_config_raw
+
+    - name: Extract the enabled kernel options
+      ansible.builtin.set_fact:
+        _k8s_kernel_options: >-
+          {{ (_k8s_kernel_config_raw.content | b64decode).splitlines()
+             | select('match', 'CONFIG_[A-Z0-9_]+=[ym]$')
+             | map('regex_replace', '=[ym]$', '')
+             | list }}
+
+    - name: Assert every kernel option required by Cilium is enabled
+      ansible.builtin.assert:
+        that:
+          - item in _k8s_kernel_options
+        fail_msg: >-
+          Kernel option {{ item }} is not enabled (=y or =m) in
+          /boot/config-{{ ansible_facts.kernel }}. Cilium cannot load its eBPF
+          datapath without it.
+        quiet: true
+      loop: "{{ _k8s_cilium_required_kernel_options + _k8s_cilium_tunnel_options }}"
+      vars:
+        _k8s_cilium_tunnel_options: >-
+          {{ [] if _k8s_cilium.routing_mode != 'tunnel'
+             else ['CONFIG_VXLAN'] if _k8s_cilium.tunnel_protocol == 'vxlan'
+             else ['CONFIG_GENEVE'] }}
+
+- name: Warn when the kernel configuration cannot be inspected
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: /boot/config-{{ ansible_facts.kernel }} is missing, the Cilium kernel
+      option requirements could not be verified on this host.
+  when: not _k8s_kernel_config_file.stat.exists
+
+- name: Check the BTF kernel metadata
+  ansible.builtin.stat:
+    path: /sys/kernel/btf/vmlinux
+  register: _k8s_btf
+
+- name: Assert BTF metadata is exposed by the kernel
+  ansible.builtin.assert:
+    that:
+      - _k8s_btf.stat.exists
+    fail_msg: >-
+      /sys/kernel/btf/vmlinux is missing, meaning the kernel was built without
+      CONFIG_DEBUG_INFO_BTF. Cilium requires BTF to load its CO-RE eBPF programs.
+    quiet: true
+
+- name: Check the cgroup v2 unified hierarchy
+  ansible.builtin.stat:
+    path: /sys/fs/cgroup/cgroup.controllers
+  register: _k8s_cgroup_v2
+
+- name: Assert the cgroup v2 unified hierarchy is mounted
+  ansible.builtin.assert:
+    that:
+      - _k8s_cgroup_v2.stat.exists
+    fail_msg: >-
+      Cilium kube-proxy replacement relies on socket based load balancing, which
+      requires the cgroup v2 unified hierarchy on /sys/fs/cgroup. Boot the host
+      with systemd.unified_cgroup_hierarchy=1, or set
+      _k8s_cilium.kube_proxy_replacement to false.
+    quiet: true
+  when: _k8s_cilium.kube_proxy_replacement | bool

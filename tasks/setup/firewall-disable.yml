@@ -1,0 +1,28 @@
+---
+# Reached only when kubernetes_cni is calico, see firewall.yml for the reason.
+# Network policy is then enforced by Calico itself rather than by the host,
+# so kubernetes_control_plane_ports and friends are not applied at all.
+- name: Collect the service facts
+  ansible.builtin.service_facts:
+
+- name: Stop and disable firewalld
+  ansible.builtin.systemd_service:
+    name: firewalld
+    state: stopped
+    enabled: false
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - "'firewalld.service' in ansible_facts.services"
+
+- name: Look up the ufw binary
+  ansible.builtin.stat:
+    path: /usr/sbin/ufw
+  register: _k8s_ufw_binary
+  when: ansible_facts.os_family == 'Debian'
+
+- name: Disable ufw
+  community.general.ufw:
+    state: disabled
+  when:
+    - ansible_facts.os_family == 'Debian'
+    - _k8s_ufw_binary.stat.exists | default(false)

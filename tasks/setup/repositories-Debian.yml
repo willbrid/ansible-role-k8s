@@ -1,0 +1,24 @@
+---
+- name: Configure the Kubernetes and CRI-O apt repositories
+  ansible.builtin.deb822_repository:
+    name: "{{ item }}"
+    types: [deb]
+    uris: "{{ _k8s_repo_baseurl[item] }}"
+    suites: ["/"]
+    signed_by: >-
+      {{ kubernetes_package_repositories[item].gpg_key_content
+         if kubernetes_package_repositories[item].gpg_key_content | length > 0
+         else _k8s_repo_key_url[item]
+         if kubernetes_package_repositories[item].gpg_check | bool
+         else omit }}
+    trusted: "{{ not kubernetes_package_repositories[item].gpg_check | bool }}"
+    enabled: true
+    state: present
+    mode: "0644"
+  loop:
+    - kubernetes
+    - crio
+  notify: Update apt cache
+
+- name: Refresh the apt cache before installing packages
+  ansible.builtin.meta: flush_handlers

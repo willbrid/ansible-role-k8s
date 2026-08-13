@@ -1,0 +1,46 @@
+---
+- name: Disable swap for the current session
+  ansible.builtin.command: swapoff -a
+  when:
+    - kubernetes_disable_swap | bool
+    - ansible_facts.swaptotal_mb | int > 0
+  changed_when: true
+
+- name: Comment out the swap entries of /etc/fstab
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\s+swap\s+.*)$'
+    replace: '#\1'
+  when: kubernetes_disable_swap | bool
+
+- name: Load the kernel modules required by the container runtime and the CNI
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+    persistent: present
+  loop: "{{ _k8s_kernel_modules }}"
+
+# Cilium stores its eBPF maps on the BPF filesystem; mounting it from the host
+# keeps the datapath state across agent restarts.
+- name: Ensure the BPF filesystem is mounted
+  ansible.posix.mount:
+    path: /sys/fs/bpf
+    src: bpffs
+    fstype: bpf
+    opts: rw,nosuid,nodev,noexec,relatime,mode=700
+    state: mounted
+  when: kubernetes_cni == 'cilium'
+
+- name: Apply the sysctl settings required by Kubernetes
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-kubernetes.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the willbrid.k8s Ansible role
+      net.ipv4.ip_forward = 1
+      net.ipv6.conf.all.forwarding = 1
+      net.bridge.bridge-nf-call-iptables = 1
+      net.bridge.bridge-nf-call-ip6tables = 1
+  notify: Apply sysctl settings

@@ -1,0 +1,64 @@
+---
+# Kubernetes has no notion of a primary control plane: once bootstrapped, every
+# control plane node is a peer, with identical labels and taints. The role knows
+# which one ran `kubeadm init`, so it writes that down as a node label, the only
+# way to get the answer back out of kubectl afterwards.
+#
+# The node is identified by the name kubelet registered it under, never by an
+# address: an IP can be renumbered, while that name is the only identity the API
+# server knows. It is the lowercased OS hostname, unless kubeadm pinned a
+# different one through --hostname-override.
+- name: Read the kubelet flags written by kubeadm
+  ansible.builtin.slurp:
+    src: /var/lib/kubelet/kubeadm-flags.env
+  register: _k8s_kubeadm_flags
+  failed_when: false
+
+- name: Resolve the name this node is registered under
+  ansible.builtin.set_fact:
+    _k8s_node_name: >-
+      {{ (_k8s_kubeadm_flags.content | default('') | b64decode
+          | regex_search('--hostname-override=([^\s"]+)', '\1')
+          or [ansible_facts.nodename | lower]) | first }}
+
+- name: Wait for the node to be registered
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ _k8s_admin_kubeconfig }}"
+      - get
+      - node
+      - "{{ _k8s_node_name }}"
+  delegate_to: "{{ kubernetes_control_plane_ip }}"
+  register: _k8s_node_registered
+  until: _k8s_node_registered.rc == 0
+  retries: 12
+  delay: 5
+  changed_when: false
+  failed_when: false
+
+- name: Assert the node showed up
+  ansible.builtin.assert:
+    that:
+      - _k8s_node_registered.rc == 0
+    fail_msg: >-
+      Node '{{ _k8s_node_name }}' never appeared in the cluster. Check that
+      kubelet registered under that name with
+      `kubectl get nodes -o wide` on {{ kubernetes_control_plane_ip }}.
+    quiet: true
+
+- name: Label the node with the role it was installed as
+  ansible.builtin.command:
+    argv:
+      - kubectl
+      - --kubeconfig
+      - "{{ _k8s_admin_kubeconfig }}"
+      - label
+      - node
+      - "{{ _k8s_node_name }}"
+      - "{{ kubernetes_node_role_label }}={{ kubernetes_role }}"
+      - --overwrite
+  delegate_to: "{{ kubernetes_control_plane_ip }}"
+  register: _k8s_node_labelled
+  changed_when: "'not labeled' not in _k8s_node_labelled.stdout"

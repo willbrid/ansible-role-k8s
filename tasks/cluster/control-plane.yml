@@ -1,0 +1,18 @@
+---
+- name: Check whether this node already belongs to a cluster
+  ansible.builtin.stat:
+    path: "{{ _k8s_kubelet_kubeconfig }}"
+  register: _k8s_kubelet_conf
+
+- name: Initialize the primary control plane
+  ansible.builtin.include_tasks: init.yml
+  when: kubernetes_role == 'primary_control_plane'
+
+- name: Join an additional control plane
+  ansible.builtin.include_tasks: join-control-plane.yml
+  when:
+    - kubernetes_role == 'secondary_control_plane'
+    - not _k8s_kubelet_conf.stat.exists
+
+- name: Install the administrator kubeconfig
+  ansible.builtin.include_tasks: kubeconfig.yml

@@ -1,0 +1,75 @@
+---
+# Calico is deployed exclusively with the nftables dataplane, which constrains
+# the kernel, the nft userspace tooling and the kube-proxy mode.
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/nftables
+- name: Assert the kernel is recent enough for the Calico nftables dataplane
+  ansible.builtin.assert:
+    that:
+      - _k8s_kernel_version is version(_k8s_calico_min_kernel, '>=')
+    fail_msg: >-
+      The Calico nftables dataplane requires a Linux kernel
+      >= {{ _k8s_calico_min_kernel }}, this host runs {{ ansible_facts.kernel }}.
+      Upgrade the kernel, or select kubernetes_cni: cilium.
+    quiet: true
+
+- name: Assert Kubernetes is recent enough for the nftables kube-proxy mode
+  ansible.builtin.assert:
+    that:
+      - kubernetes_version is version(_k8s_calico_min_k8s, '>=')
+    fail_msg: >-
+      The Calico nftables dataplane requires kube-proxy in nftables mode, which
+      is only enabled by default from Kubernetes {{ _k8s_calico_min_k8s }}
+      (GA in 1.33). Requested version is {{ kubernetes_version }}.
+    quiet: true
+
+- name: Warn when the nftables kube-proxy mode is still beta
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: kube-proxy nftables mode is beta in Kubernetes {{ kubernetes_version }}
+      and only GA from 1.33. Consider bumping kubernetes_version for a
+      production cluster.
+  when: kubernetes_version is version('1.33', '<')
+
+- name: Ensure the nftables userspace tooling is installed
+  ansible.builtin.package:
+    name: nftables
+    state: present
+
+- name: Collect the nft userspace version
+  ansible.builtin.command: nft --version
+  register: _k8s_nft_version_cmd
+  changed_when: false
+  check_mode: false
+
+- name: Assert the nft userspace version is recent enough
+  ansible.builtin.assert:
+    that:
+      - _k8s_nft_version is version(_k8s_calico_min_nft, '>=')
+    fail_msg: >-
+      The Calico nftables dataplane requires nft >= {{ _k8s_calico_min_nft }},
+      this host provides '{{ _k8s_nft_version | default("unknown") }}'.
+    quiet: true
+  vars:
+    _k8s_nft_version: '{{ (_k8s_nft_version_cmd.stdout | regex_search("v([0-9]+\.[0-9]+\.[0-9]+)", "\1") or [""]) | first }}'
+
+- name: Look up the nf_tables kernel module
+  ansible.builtin.command: modinfo -F name nf_tables
+  register: _k8s_nf_tables_modinfo
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Check whether nf_tables is already built in or loaded
+  ansible.builtin.stat:
+    path: /sys/module/nf_tables
+  register: _k8s_nf_tables_loaded
+
+- name: Assert the nf_tables kernel module is available
+  ansible.builtin.assert:
+    that:
+      - _k8s_nf_tables_modinfo.rc == 0 or _k8s_nf_tables_loaded.stat.exists
+    fail_msg: >-
+      The nf_tables kernel module is neither built in nor available as a loadable
+      module on {{ ansible_facts.kernel }}. The Calico nftables dataplane cannot run on
+      this host.
+    quiet: true

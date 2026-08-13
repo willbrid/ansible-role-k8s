@@ -1,0 +1,16 @@
+---
+- name: Ensure the base system packages are installed
+  ansible.builtin.dnf:
+    name: "{{ _k8s_bootstrap_packages }}"
+    state: present
+    update_cache: true
+
+# CRI-O and kubelet do not ship a complete SELinux policy for every workload,
+# so the upstream kubeadm guidance is to run the nodes in permissive mode.
+- name: Set SELinux to permissive
+  ansible.posix.selinux:
+    policy: targeted
+    state: permissive
+  when:
+    - kubernetes_selinux_permissive | bool
+    - ansible_facts.selinux.status | default('disabled') == 'enabled'

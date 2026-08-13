@@ -1,0 +1,48 @@
+---
+- name: Check the installed Helm version
+  ansible.builtin.command: "{{ _k8s_helm.binary_path }} version --short"
+  register: _k8s_helm_installed
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Install the Helm client
+  when: _k8s_helm_installed.stdout | default('') is not match('v' ~ _k8s_helm.version)
+  block:
+    - name: Create a staging directory for the Helm archive
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: helm
+      register: _k8s_helm_tmp
+
+    - name: Download the Helm archive
+      ansible.builtin.get_url:
+        url: "{{ _k8s_helm_archive_url }}"
+        dest: "{{ _k8s_helm_tmp.path }}/helm.tar.gz"
+        checksum: "{{ _k8s_helm.checksum | default(omit, true) }}"
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Extract the Helm archive
+      ansible.builtin.unarchive:
+        src: "{{ _k8s_helm_tmp.path }}/helm.tar.gz"
+        dest: "{{ _k8s_helm_tmp.path }}"
+        remote_src: true
+        extra_opts:
+          - --strip-components=1
+
+    - name: Install the Helm binary
+      ansible.builtin.copy:
+        src: "{{ _k8s_helm_tmp.path }}/helm"
+        dest: "{{ _k8s_helm.binary_path }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+  always:
+    - name: Remove the staging directory
+      ansible.builtin.file:
+        path: "{{ _k8s_helm_tmp.path | default('') }}"
+        state: absent
+      when: _k8s_helm_tmp.path is defined

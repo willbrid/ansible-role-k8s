@@ -1,0 +1,60 @@
+---
+# The three tasks below talk to the API server of the primary control plane,
+# which is still absorbing the CNI rollout at that point. kubeadm gives itself
+# one minute, then gives up with `client rate limiter Wait returned an error:
+# context deadline exceeded`, so both calls are retried. Retrying is safe:
+# upload-certs merely re-uploads the kubeadm-certs secret, and token create
+# leaves at most a spare bootstrap token behind, which expires on its own.
+- name: Wait for the primary control plane API server to answer
+  ansible.builtin.command: "kubectl --kubeconfig {{ _k8s_admin_kubeconfig }} get --raw=/readyz"
+  delegate_to: "{{ kubernetes_control_plane_ip }}"
+  register: _k8s_primary_readyz
+  until: _k8s_primary_readyz.stdout is defined and _k8s_primary_readyz.stdout == 'ok'
+  retries: 30
+  delay: 5
+  changed_when: false
+
+# --config is not optional on a multi-homed host: without it kubeadm rebuilds a
+# client against the IP of the default route interface rather than the
+# controlPlaneEndpoint, and the API server certificate does not carry that
+# address. Typical of a management network separate from the cluster network.
+- name: Upload the control plane certificates and read back the certificate key
+  ansible.builtin.command: >-
+    kubeadm init phase upload-certs --upload-certs
+    --config {{ _k8s_kubeadm_config_file }}
+  delegate_to: "{{ kubernetes_control_plane_ip }}"
+  register: _k8s_upload_certs
+  until: _k8s_upload_certs.rc == 0
+  retries: 5
+  delay: 15
+  changed_when: true
+
+- name: Create a bootstrap token and read back the join command
+  ansible.builtin.command: kubeadm token create --print-join-command
+  delegate_to: "{{ kubernetes_control_plane_ip }}"
+  register: _k8s_join_command
+  until: _k8s_join_command.rc == 0
+  retries: 5
+  delay: 15
+  changed_when: true
+
+- name: Join the node as an additional control plane
+  ansible.builtin.command:
+    argv: >-
+      {{ _k8s_join_command.stdout.split()
+         + ['--control-plane',
+            '--certificate-key', _k8s_certificate_key,
+            '--cri-socket', _k8s_crio_socket,
+            '--apiserver-advertise-address', kubernetes_node_ip] }}
+    creates: "{{ _k8s_kubelet_kubeconfig }}"
+  vars:
+    _k8s_certificate_key: "{{ _k8s_upload_certs.stdout_lines | last | trim }}"
+  no_log: true
+
+- name: Wait for the API server to become ready
+  ansible.builtin.command: "kubectl --kubeconfig {{ _k8s_admin_kubeconfig }} get --raw=/readyz"
+  register: _k8s_apiserver_readyz
+  until: _k8s_apiserver_readyz.stdout is defined and _k8s_apiserver_readyz.stdout == 'ok'
+  retries: 30
+  delay: 5
+  changed_when: false

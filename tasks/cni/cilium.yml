@@ -1,0 +1,32 @@
+---
+- name: Render the Cilium Helm values
+  ansible.builtin.template:
+    src: cilium-values.yaml.j2
+    dest: "{{ _k8s_cni_values_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy Cilium
+  kubernetes.core.helm:
+    binary_path: "{{ _k8s_helm.binary_path }}"
+    kubeconfig: "{{ _k8s_admin_kubeconfig }}"
+    release_name: cilium
+    chart_ref: "{{ _k8s_cilium.chart_ref if _k8s_cilium.chart_ref | length > 0 else 'cilium' }}"
+    chart_repo_url: "{{ omit if _k8s_cilium.chart_ref | length > 0 else _k8s_cilium.chart_repo_url }}"
+    chart_version: "{{ _k8s_cilium.version }}"
+    release_namespace: "{{ _k8s_cilium.namespace }}"
+    create_namespace: true
+    values_files:
+      - "{{ _k8s_cni_values_file }}"
+    # Subscript notation on purpose: `.values` resolves to the dict method.
+    release_values: "{{ _k8s_cilium['values'] }}"
+    wait: true
+    wait_timeout: 10m
+
+- name: Wait for the Cilium agent daemonset to be rolled out
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+    rollout status daemonset/cilium -n {{ _k8s_cilium.namespace }} --timeout=600s
+  register: _k8s_cilium_rollout
+  changed_when: false

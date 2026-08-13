@@ -1,0 +1,27 @@
+---
+- name: Check whether this node already belongs to a cluster
+  ansible.builtin.stat:
+    path: "{{ _k8s_kubelet_kubeconfig }}"
+  register: _k8s_kubelet_conf
+
+- name: Join the worker node to the cluster
+  when: not _k8s_kubelet_conf.stat.exists
+  block:
+    # Retried for the same reason as in join-control-plane.yml: the API server
+    # of the primary control plane can be slow enough for kubeadm to hit its own
+    # one minute deadline. A retry only leaves a spare bootstrap token behind.
+    - name: Create a bootstrap token and read back the join command
+      ansible.builtin.command: kubeadm token create --print-join-command
+      delegate_to: "{{ kubernetes_control_plane_ip }}"
+      register: _k8s_join_command
+      until: _k8s_join_command.rc == 0
+      retries: 5
+      delay: 15
+      changed_when: true
+
+    - name: Join the node to the cluster
+      ansible.builtin.command:
+        argv: >-
+          {{ _k8s_join_command.stdout.split() + ['--cri-socket', _k8s_crio_socket] }}
+        creates: "{{ _k8s_kubelet_kubeconfig }}"
+      no_log: true

@@ -1,0 +1,12 @@
+---
+- name: Install CRI-O
+  ansible.builtin.dnf:
+    name: "{{ _k8s_crio_package }}"
+    state: present
+    disable_excludes: "{{ 'cri-o' if kubernetes_packages_hold | bool else omit }}"
+
+- name: Ensure CRI-O is enabled and running
+  ansible.builtin.systemd_service:
+    name: crio
+    enabled: true
+    state: started

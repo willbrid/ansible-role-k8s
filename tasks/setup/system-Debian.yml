@@ -1,0 +1,9 @@
+---
+# python3-debian is mandatory for ansible.builtin.deb822_repository, which the
+# repository configuration relies on right after this file.
+- name: Ensure the base system packages are installed
+  ansible.builtin.apt:
+    name: "{{ _k8s_bootstrap_packages }}"
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

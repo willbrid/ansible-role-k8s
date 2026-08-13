@@ -1,0 +1,133 @@
+---
+- name: Assert the node role and CNI selection are supported
+  ansible.builtin.assert:
+    that:
+      - kubernetes_role in _k8s_supported_roles
+      - kubernetes_cni in _k8s_supported_cni
+    fail_msg: >-
+      kubernetes_role must be one of {{ _k8s_supported_roles | join(', ') }}
+      (got '{{ kubernetes_role }}') and kubernetes_cni must be one of
+      {{ _k8s_supported_cni | join(', ') }} (got '{{ kubernetes_cni }}').
+    quiet: true
+
+- name: Assert the node role label is a usable label key
+  ansible.builtin.assert:
+    that:
+      - _k8s_node_role_label_valid | bool
+    fail_msg: >-
+      kubernetes_node_role_label ('{{ kubernetes_node_role_label }}') is not a
+      valid Kubernetes label key. Expected an optional DNS subdomain prefix and
+      a slash, then a name of at most 63 alphanumerics, dashes, underscores or
+      dots, such as 'willbrid.k8s/role'. Set it to an empty string to disable
+      the labelling.
+    quiet: true
+
+- name: Assert the cluster endpoints are defined
+  ansible.builtin.assert:
+    that:
+      - kubernetes_control_plane_ip | length > 0
+      - kubernetes_control_plane_endpoint | length > 0
+      - kubernetes_node_ip | length > 0
+    fail_msg: >-
+      kubernetes_control_plane_ip, kubernetes_control_plane_endpoint and
+      kubernetes_node_ip are mandatory and must not be empty.
+    quiet: true
+
+- name: Assert the Kubernetes versions are consistent
+  ansible.builtin.assert:
+    that:
+      - kubernetes_version is match('^[0-9]+\.[0-9]+$')
+      - kubernetes_patch_version is match('^[0-9]+\.[0-9]+\.[0-9]+$')
+      - kubernetes_patch_version.startswith(kubernetes_version ~ '.')
+      - kubernetes_version is version(_k8s_min_version, '>=')
+    fail_msg: >-
+      kubernetes_version must be an x.y version greater than or equal to
+      {{ _k8s_min_version }} and kubernetes_patch_version must be the matching
+      x.y.z version (got '{{ kubernetes_version }}' / '{{ kubernetes_patch_version }}').
+    quiet: true
+
+- name: Assert the cluster networks are valid CIDRs
+  ansible.builtin.assert:
+    that:
+      - item is match('^[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}$')
+    fail_msg: "'{{ item }}' is not a valid IPv4 CIDR."
+    quiet: true
+  loop:
+    - "{{ kubernetes_pod_network_cidr }}"
+    - "{{ kubernetes_service_cidr }}"
+
+- name: Assert the package source is valid
+  ansible.builtin.assert:
+    that:
+      - kubernetes_package_source in ['internet', 'custom']
+    fail_msg: "kubernetes_package_source must be 'internet' or 'custom' (got '{{ kubernetes_package_source }}')."
+    quiet: true
+
+- name: Assert the custom repositories are fully configured
+  ansible.builtin.assert:
+    that:
+      - kubernetes_package_repositories[item].baseurl | length > 0
+    fail_msg: >-
+      kubernetes_package_source is set to 'custom' but
+      kubernetes_package_repositories.{{ item }}.baseurl is empty. Point it to
+      the internal mirror serving the {{ item }} {{ _k8s_repo_flavour }} packages.
+    quiet: true
+  loop:
+    - kubernetes
+    - crio
+  when: _k8s_repo_custom | bool
+
+- name: Assert the custom repositories carry a signing key
+  ansible.builtin.assert:
+    that:
+      - (kubernetes_package_repositories[item].gpg_key_url | length > 0)
+        or (kubernetes_package_repositories[item].gpg_key_content | length > 0)
+    fail_msg: >-
+      The custom '{{ item }}' repository enforces signature verification but
+      neither gpg_key_url nor gpg_key_content is set. Provide the signing key of
+      the mirror, or set gpg_check to false for that repository.
+    quiet: true
+  loop:
+    - kubernetes
+    - crio
+  when:
+    - _k8s_repo_custom | bool
+    - kubernetes_package_repositories[item].gpg_check | bool
+
+- name: Warn when a custom repository has no signature verification
+  ansible.builtin.debug:
+    msg: >-
+      WARNING: signature verification is disabled for the custom '{{ item }}'
+      repository. Provide gpg_key_url or gpg_key_content instead of setting
+      gpg_check to false.
+  loop:
+    - kubernetes
+    - crio
+  when:
+    - _k8s_repo_custom | bool
+    - not kubernetes_package_repositories[item].gpg_check | bool
+
+- name: Assert the Calico options are valid
+  ansible.builtin.assert:
+    that:
+      - _k8s_calico.encapsulation in ['VXLAN', 'VXLANCrossSubnet', 'IPIP', 'IPIPCrossSubnet', 'None']
+      - _k8s_calico.bgp in ['Enabled', 'Disabled']
+      - _k8s_calico.block_size | int >= 20
+      - _k8s_calico.block_size | int <= 32
+    fail_msg: >-
+      Invalid kubernetes_calico options: encapsulation must be one of
+      VXLAN, VXLANCrossSubnet, IPIP, IPIPCrossSubnet, None; bgp must be
+      Enabled or Disabled; block_size must be between 20 and 32.
+    quiet: true
+  when: kubernetes_cni == 'calico'
+
+- name: Assert the Cilium options are valid
+  ansible.builtin.assert:
+    that:
+      - _k8s_cilium.routing_mode in ['tunnel', 'native']
+      - _k8s_cilium.tunnel_protocol in ['vxlan', 'geneve']
+    fail_msg: >-
+      Invalid kubernetes_cilium options: routing_mode must be 'tunnel' or
+      'native' and tunnel_protocol must be 'vxlan' or 'geneve'.
+    quiet: true
+  when: kubernetes_cni == 'cilium'

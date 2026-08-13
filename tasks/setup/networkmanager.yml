@@ -1,0 +1,22 @@
+---
+# Both CNIs create interfaces NetworkManager knows nothing about. Left alone,
+# NetworkManager claims them and can take the datapath down on the next reload,
+# so they are declared unmanaged. Calico documents this as a hard requirement.
+# https://docs.tigera.io/calico/latest/getting-started/kubernetes/requirements
+- name: Detect NetworkManager
+  ansible.builtin.stat:
+    path: /etc/NetworkManager/conf.d
+  register: _k8s_nm_conf_d
+
+- name: Keep NetworkManager away from the CNI interfaces
+  ansible.builtin.copy:
+    dest: /etc/NetworkManager/conf.d/99-kubernetes-cni.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by the willbrid.k8s Ansible role
+      [keyfile]
+      unmanaged-devices={{ _k8s_cni_unmanaged_devices | join(';') }}
+  when: _k8s_nm_conf_d.stat.isdir | default(false)
+  notify: Reload NetworkManager

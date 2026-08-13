@@ -1,0 +1,109 @@
+---
+# Calico ships its projectcalico.org CRDs in a dedicated chart that has to be
+# server-side applied before the operator chart, because those CRDs exceed the
+# annotation size limit of a client-side apply.
+- name: Create the Calico CRD rendering directory
+  ansible.builtin.file:
+    path: "{{ _k8s_calico_render_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Render the Calico CRDs
+  kubernetes.core.helm_template:
+    binary_path: "{{ _k8s_helm.binary_path }}"
+    chart_ref: "{{ _k8s_calico.crds_chart_ref if _k8s_calico.crds_chart_ref | length > 0 else 'crd.projectcalico.org.v1' }}"
+    chart_repo_url: "{{ omit if _k8s_calico.crds_chart_ref | length > 0 else _k8s_calico.chart_repo_url }}"
+    chart_version: "{{ _k8s_calico.version }}"
+    release_name: calico-crds
+    release_namespace: "{{ _k8s_calico.namespace }}"
+    output_dir: "{{ _k8s_calico_render_dir }}"
+
+- name: Apply the Calico CRDs
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+    apply --server-side --force-conflicts -R -f {{ _k8s_calico_render_dir }}
+  register: _k8s_calico_crds_applied
+  changed_when: "'created' in _k8s_calico_crds_applied.stdout or 'configured' in _k8s_calico_crds_applied.stdout"
+
+- name: Render the Calico Helm values
+  ansible.builtin.template:
+    src: calico-values.yaml.j2
+    dest: "{{ _k8s_cni_values_file }}"
+    owner: root
+    group: root
+    mode: "0600"
+
+- name: Deploy the Tigera operator and the Calico installation
+  kubernetes.core.helm:
+    binary_path: "{{ _k8s_helm.binary_path }}"
+    kubeconfig: "{{ _k8s_admin_kubeconfig }}"
+    release_name: calico
+    chart_ref: "{{ _k8s_calico.chart_ref if _k8s_calico.chart_ref | length > 0 else 'tigera-operator' }}"
+    chart_repo_url: "{{ omit if _k8s_calico.chart_ref | length > 0 else _k8s_calico.chart_repo_url }}"
+    chart_version: "{{ _k8s_calico.version }}"
+    release_namespace: "{{ _k8s_calico.namespace }}"
+    create_namespace: true
+    values_files:
+      - "{{ _k8s_cni_values_file }}"
+    # Subscript notation on purpose: `.values` resolves to the dict method.
+    release_values: "{{ _k8s_calico['values'] }}"
+    wait: true
+    wait_timeout: 10m
+
+# The calico-system namespace and the calico-node daemonset are not part of the
+# tigera-operator chart, the operator creates them while reconciling the
+# Installation resource, a good twenty seconds after Helm reports the release as
+# deployed. `rollout status` fails outright on a missing namespace instead of
+# waiting for it, so the daemonset has to be there before it is called.
+- name: Wait for the Calico node daemonset to be created by the operator
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+    get daemonset calico-node -n calico-system
+  register: _k8s_calico_ds
+  until: _k8s_calico_ds.rc == 0
+  retries: 30
+  delay: 10
+  changed_when: false
+  failed_when: false
+
+- name: Assert the Calico node daemonset showed up
+  ansible.builtin.assert:
+    that:
+      - _k8s_calico_ds.rc == 0
+    fail_msg: >-
+      The tigera-operator did not create the calico-node daemonset within 5
+      minutes. Inspect the operator with `kubectl logs -n
+      {{ _k8s_calico.namespace }} deployment/tigera-operator` and the
+      reconciliation state with `kubectl get tigerastatus`.
+    quiet: true
+
+- name: Wait for the Calico node daemonset to be rolled out
+  ansible.builtin.command: >-
+    kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+    rollout status daemonset/calico-node -n calico-system --timeout=600s
+  register: _k8s_calico_rollout
+  changed_when: false
+
+- name: Enable WireGuard encryption
+  when: _k8s_calico.wireguard_enabled | bool
+  block:
+    - name: Wait for the default Felix configuration
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+        get felixconfiguration default
+      register: _k8s_felix_default
+      until: _k8s_felix_default.rc == 0
+      retries: 30
+      delay: 10
+      changed_when: false
+      failed_when: false
+
+    - name: Turn on WireGuard in the default Felix configuration
+      ansible.builtin.command: >-
+        kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
+        patch felixconfiguration default --type=merge
+        -p {{ '{"spec":{"wireguardEnabled":true}}' | quote }}
+      register: _k8s_felix_patch
+      changed_when: "'no change' not in _k8s_felix_patch.stdout"

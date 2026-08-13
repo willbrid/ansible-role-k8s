@@ -1,0 +1,83 @@
+---
+# Reached only when kubernetes_cni is cilium, see firewall.yml for the reason.
+# The port list itself is derived in vars/main.yml as _k8s_open_ports.
+- name: Configure firewalld
+  when: ansible_facts.os_family == 'RedHat'
+  block:
+    - name: Ensure firewalld is running
+      ansible.builtin.systemd_service:
+        name: firewalld
+        state: started
+        enabled: true
+
+    - name: Enable masquerading on the public zone
+      ansible.posix.firewalld:
+        zone: public
+        masquerade: true
+        permanent: true
+        immediate: true
+        state: enabled
+
+    - name: Open the Kubernetes and CNI ports
+      ansible.posix.firewalld:
+        port: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ _k8s_open_ports }}"
+
+    # Cilium drives traffic over interfaces firewalld does not know about.
+    - name: Trust the Cilium interfaces
+      ansible.posix.firewalld:
+        zone: trusted
+        interface: "{{ item }}"
+        permanent: true
+        immediate: true
+        state: enabled
+      loop: "{{ _k8s_cilium_interfaces }}"
+
+- name: Configure ufw
+  when: ansible_facts.os_family == 'Debian'
+  block:
+    - name: Set the default incoming policy
+      community.general.ufw:
+        default: deny
+        direction: incoming
+      notify: Reload ufw
+
+    - name: Set the default outgoing policy
+      community.general.ufw:
+        default: allow
+        direction: outgoing
+      notify: Reload ufw
+
+    - name: Set the default forward policy
+      community.general.ufw:
+        default: allow
+        direction: routed
+      notify: Reload ufw
+
+    - name: Allow inbound SSH
+      community.general.ufw:
+        rule: allow
+        port: ssh
+        proto: tcp
+      notify: Reload ufw
+
+    - name: Open the Kubernetes and CNI ports
+      community.general.ufw:
+        rule: allow
+        port: "{{ item.split('/') | first | regex_replace('-', ':') }}"
+        proto: "{{ item.split('/') | last }}"
+      loop: "{{ _k8s_open_ports }}"
+      notify: Reload ufw
+
+    - name: Allow all traffic coming from the pod network
+      community.general.ufw:
+        rule: allow
+        src: "{{ kubernetes_pod_network_cidr }}"
+      notify: Reload ufw
+
+    - name: Enable ufw
+      community.general.ufw:
+        state: enabled

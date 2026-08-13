@@ -350,6 +350,13 @@ argument_specs:
             description:
               - "Let Cilium replace kube-proxy. kubeadm then skips the kube-proxy addon entirely."
               - "Requires the cgroup v2 unified hierarchy."
+          operator_replicas:
+            type: int
+            required: false
+            default: 1
+            description:
+              - "Number of cilium-operator replicas."
+              - "The CNI is deployed on the single node that ran kubeadm init, where a second replica cannot be scheduled."
           routing_mode:
             type: str
             required: false

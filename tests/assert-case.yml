@@ -1,0 +1,45 @@
+---
+# One case of tests/assert-variables.yml.
+#
+# The public interface is replayed with set_fact rather than task vars: role
+# vars and include_vars both outrank task vars, set_fact outranks them all, so
+# this is the only tier from which a case can actually override the defaults.
+# Every key is rewritten on each case, otherwise a value would leak into the
+# next one, facts being kept for the whole run.
+# A key the case does not set falls back to `role_defaults`, the snapshot the
+# playbook takes of defaults/main.yml before the first case runs. Never to a
+# literal: hardcoding the expected default here would make the test blind to a
+# change of that very default, which is exactly what it is meant to catch.
+- name: "Apply the public variables of {{ case.name }}"
+  ansible.builtin.set_fact:
+    kubernetes_cni: "{{ case.given.kubernetes_cni | default(role_defaults.kubernetes_cni) }}"
+    kubernetes_role: "{{ case.given.kubernetes_role | default(role_defaults.kubernetes_role) }}"
+    kubernetes_calico: "{{ case.given.kubernetes_calico | default(role_defaults.kubernetes_calico) }}"
+    kubernetes_cilium: "{{ case.given.kubernetes_cilium | default(role_defaults.kubernetes_cilium) }}"
+    kubernetes_version: "{{ case.given.kubernetes_version | default(role_defaults.kubernetes_version) }}"
+    kubernetes_package_source: >-
+      {{ case.given.kubernetes_package_source | default(role_defaults.kubernetes_package_source) }}
+    kubernetes_extra_tcp_ports: >-
+      {{ case.given.kubernetes_extra_tcp_ports | default(role_defaults.kubernetes_extra_tcp_ports) }}
+    kubernetes_extra_udp_ports: >-
+      {{ case.given.kubernetes_extra_udp_ports | default(role_defaults.kubernetes_extra_udp_ports) }}
+    kubernetes_node_ports: "{{ case.given.kubernetes_node_ports | default(role_defaults.kubernetes_node_ports) }}"
+    kubernetes_control_plane_ports: >-
+      {{ case.given.kubernetes_control_plane_ports | default(role_defaults.kubernetes_control_plane_ports) }}
+    kubernetes_node_role_label: >-
+      {{ case.given.kubernetes_node_role_label | default(role_defaults.kubernetes_node_role_label) }}
+    # Stands in for the facts the role would gather on a real node.
+    _k8s_kernel_version: "{{ case.given._k8s_kernel_version | default('5.14.0') }}"
+    _k8s_repo_flavour: "{{ case.given._k8s_repo_flavour | default('rpm') }}"
+
+- name: "Check the derived values of {{ case.name }}"
+  ansible.builtin.assert:
+    that:
+      - lookup('vars', item.key) == item.value
+    fail_msg: >-
+      {{ case.name }}: {{ item.key }} is {{ lookup('vars', item.key) | to_json }},
+      expected {{ item.value | to_json }}
+    quiet: true
+  loop: "{{ case.expect | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}"

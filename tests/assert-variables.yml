@@ -1,0 +1,292 @@
+---
+# Assertions on everything the role derives from its public interface, without
+# needing a cluster or even a managed node:
+#
+#   ansible-playbook tests/assert-variables.yml
+#
+# This is where the regressions actually happen. A dictionary silently emptied
+# by a partial override, a port that stops being opened, a kernel module no
+# longer loaded: none of it shows up until a cluster is half built.
+- name: Assert the variables derived by the willbrid.k8s role
+  hosts: localhost
+  gather_facts: false
+  connection: local
+  vars:
+    role_dir: "{{ playbook_dir }}/.."
+
+    calico_defaults: &calico_defaults
+      version: "v3.32.1"
+      namespace: "tigera-operator"
+      chart_repo_url: "https://docs.tigera.io/calico/charts"
+      chart_ref: ""
+      crds_chart_ref: ""
+      image_registry: ""
+      image_path: ""
+      image_pull_secret: ""
+      encapsulation: "VXLANCrossSubnet"
+      bgp: "Disabled"
+      wireguard_enabled: false
+      api_server: true
+      block_size: 26
+      values: {}
+
+    cases:
+      # ---------------------------------------------------------------- merge
+      - name: "an untouched kubernetes_calico keeps every default"
+        given: {}
+        expect:
+          _k8s_calico: *calico_defaults
+
+      # Written out rather than merged onto the anchor: a YAML merge key that
+      # also redefines one of the anchor's keys is a duplicate key, which the
+      # parser only resolves by convention.
+      - name: "a partial kubernetes_calico only changes the keys it sets"
+        given:
+          kubernetes_calico:
+            bgp: "Enabled"
+            values: {foo: "bar"}
+        expect:
+          _k8s_calico:
+            version: "v3.32.1"
+            namespace: "tigera-operator"
+            chart_repo_url: "https://docs.tigera.io/calico/charts"
+            chart_ref: ""
+            crds_chart_ref: ""
+            image_registry: ""
+            image_path: ""
+            image_pull_secret: ""
+            encapsulation: "VXLANCrossSubnet"
+            bgp: "Enabled"
+            wireguard_enabled: false
+            api_server: true
+            block_size: 26
+            values: {foo: "bar"}
+
+      - name: "a partial kubernetes_cilium only changes the keys it sets"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_cilium: {hubble_enabled: true}
+        expect:
+          _k8s_cilium:
+            version: "1.20.0"
+            namespace: "kube-system"
+            chart_repo_url: "https://helm.cilium.io"
+            chart_ref: ""
+            image_registry: ""
+            kube_proxy_replacement: true
+            routing_mode: "tunnel"
+            tunnel_protocol: "vxlan"
+            wireguard_enabled: false
+            hubble_enabled: true
+            values: {}
+
+      # ------------------------------------------------- Calico network stack
+      - name: "Calico on VXLAN needs the vxlan module and no IPIP rule"
+        given: {}
+        expect:
+          _k8s_calico_ipip: false
+          _k8s_kernel_modules: ["overlay", "br_netfilter", "nf_tables", "vxlan"]
+          _k8s_kube_proxy_mode: "nftables"
+          _k8s_skip_kube_proxy: false
+
+      - name: "Calico on IPIP with BGP and WireGuard"
+        given:
+          kubernetes_calico:
+            encapsulation: "IPIPCrossSubnet"
+            bgp: "Enabled"
+            wireguard_enabled: true
+        expect:
+          _k8s_calico_ipip: true
+          _k8s_kernel_modules: ["overlay", "br_netfilter", "nf_tables", "ipip", "wireguard"]
+
+      - name: "Calico keeps NetworkManager away from its interfaces"
+        given: {}
+        expect:
+          _k8s_cni_unmanaged_devices:
+            - "interface-name:cali*"
+            - "interface-name:tunl*"
+            - "interface-name:vxlan.calico"
+            - "interface-name:vxlan-v6.calico"
+            - "interface-name:wireguard.cali"
+            - "interface-name:wg-v6.cali"
+
+      # ------------------------------------------------- Cilium network stack
+      - name: "Cilium in tunnel VXLAN takes over kube-proxy"
+        given:
+          kubernetes_cni: "cilium"
+        expect:
+          _k8s_skip_kube_proxy: true
+          _k8s_cilium_tcp_ports: ["4240"]
+          _k8s_cilium_udp_ports: ["8472"]
+          _k8s_kernel_modules: ["overlay", "br_netfilter", "vxlan"]
+          _k8s_cilium_interfaces:
+            ["cilium_host", "cilium_net", "cilium_vxlan", "cilium_geneve", "lxc+"]
+          _k8s_cni_unmanaged_devices:
+            ["interface-name:cilium_*", "interface-name:lxc*"]
+
+      - name: "Cilium in Geneve with Hubble and WireGuard"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_cilium:
+            tunnel_protocol: "geneve"
+            hubble_enabled: true
+            wireguard_enabled: true
+        expect:
+          _k8s_cilium_tcp_ports: ["4240", "4244", "4245"]
+          _k8s_cilium_udp_ports: ["6081", "51871"]
+          _k8s_kernel_modules: ["overlay", "br_netfilter", "geneve", "wireguard"]
+          _k8s_cilium_interfaces:
+            ["cilium_host", "cilium_net", "cilium_vxlan", "cilium_geneve", "lxc+", "cilium_wg0"]
+
+      - name: "Cilium without kube-proxy replacement leaves the addon alone"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_cilium: {kube_proxy_replacement: false}
+        expect:
+          _k8s_skip_kube_proxy: false
+
+      - name: "Cilium in native routing opens no tunnel port"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_cilium: {routing_mode: "native"}
+        expect:
+          _k8s_cilium_udp_ports: []
+          _k8s_kernel_modules: ["overlay", "br_netfilter"]
+
+      - name: "a kernel older than 5.13 falls back to the iptables kube-proxy"
+        given:
+          kubernetes_cni: "cilium"
+          _k8s_kernel_version: "5.10.0"
+        expect:
+          _k8s_kube_proxy_mode: "iptables"
+
+      # -------------------------------------------------------- firewall ports
+      - name: "a control plane opens the API server and etcd ports"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_role: "secondary_control_plane"
+        expect:
+          _k8s_open_ports:
+            ["6443/tcp", "2379-2380/tcp", "10250/tcp", "10257/tcp", "10259/tcp",
+             "4240/tcp", "8472/udp"]
+
+      - name: "a worker opens the NodePort range and the extra ports"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_role: "node"
+          kubernetes_extra_tcp_ports: ["9100"]
+          kubernetes_extra_udp_ports: ["1234"]
+        expect:
+          _k8s_open_ports:
+            ["10250/tcp", "10256/tcp", "30000-32767/tcp", "4240/tcp", "9100/tcp",
+             "8472/udp", "1234/udp"]
+
+      - name: "a shortened kubernetes_node_ports is honoured"
+        given:
+          kubernetes_cni: "cilium"
+          kubernetes_role: "node"
+          kubernetes_node_ports: ["10250"]
+        expect:
+          _k8s_open_ports: ["10250/tcp", "4240/tcp", "8472/udp"]
+
+      # ---------------------------------------------------------- node labelling
+      # The only case that compares against a literal on purpose. Everywhere
+      # else a literal would make the test blind to a change of default; here
+      # pinning it is the point, since the label key is a published interface
+      # people write queries and dashboards against.
+      - name: "the default node role label key does not move"
+        given: {}
+        expect:
+          kubernetes_node_role_label: "willbrid.k8s/role"
+          _k8s_node_role_label_valid: true
+
+      - name: "a bare name with no prefix is a valid label key"
+        given: {kubernetes_node_role_label: "role"}
+        expect:
+          _k8s_node_role_label_valid: true
+
+      - name: "an empty label key is valid and disables the labelling"
+        given: {kubernetes_node_role_label: ""}
+        expect:
+          _k8s_node_role_label_valid: true
+
+      - name: "a label key with a space is rejected"
+        given: {kubernetes_node_role_label: "willbrid.k8s/node role"}
+        expect:
+          _k8s_node_role_label_valid: false
+
+      - name: "a label key with a trailing slash is rejected"
+        given: {kubernetes_node_role_label: "willbrid.k8s/"}
+        expect:
+          _k8s_node_role_label_valid: false
+
+      - name: "a label key with two slashes is rejected"
+        given: {kubernetes_node_role_label: "willbrid.k8s/extra/role"}
+        expect:
+          _k8s_node_role_label_valid: false
+
+      - name: "a label name longer than 63 characters is rejected"
+        given: {kubernetes_node_role_label: "willbrid.k8s/{{ 'r' * 64 }}"}
+        expect:
+          _k8s_node_role_label_valid: false
+
+      # ------------------------------------------------------------- packages
+      - name: "the upstream repositories follow the Kubernetes version"
+        given:
+          kubernetes_version: "1.34"
+        expect:
+          _k8s_repo_custom: false
+          _k8s_kubeadm_api_version: "v1beta4"
+          _k8s_repo_baseurl:
+            kubernetes: "https://pkgs.k8s.io/core:/stable:/v1.34/rpm/"
+            crio: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.34/rpm/"
+
+      - name: "a Kubernetes older than 1.31 falls back to the v1beta3 kubeadm API"
+        given:
+          kubernetes_version: "1.30"
+        expect:
+          _k8s_kubeadm_api_version: "v1beta3"
+
+      - name: "the custom package source switches the repositories over"
+        given:
+          kubernetes_package_source: "custom"
+        expect:
+          _k8s_repo_custom: true
+
+  tasks:
+    - name: Load the role defaults
+      ansible.builtin.include_vars:
+        file: "{{ role_dir }}/defaults/main.yml"
+
+    # Frozen before the first case, since set_fact then shadows these for the
+    # rest of the run. Cases fall back to this snapshot rather than to literals,
+    # so a change of default is caught instead of being written twice.
+    - name: Snapshot the role defaults
+      ansible.builtin.set_fact:
+        role_defaults:
+          kubernetes_cni: "{{ kubernetes_cni }}"
+          kubernetes_role: "{{ kubernetes_role }}"
+          kubernetes_calico: "{{ kubernetes_calico }}"
+          kubernetes_cilium: "{{ kubernetes_cilium }}"
+          kubernetes_version: "{{ kubernetes_version }}"
+          kubernetes_package_source: "{{ kubernetes_package_source }}"
+          kubernetes_extra_tcp_ports: "{{ kubernetes_extra_tcp_ports }}"
+          kubernetes_extra_udp_ports: "{{ kubernetes_extra_udp_ports }}"
+          kubernetes_node_ports: "{{ kubernetes_node_ports }}"
+          kubernetes_control_plane_ports: "{{ kubernetes_control_plane_ports }}"
+          kubernetes_node_role_label: "{{ kubernetes_node_role_label }}"
+
+    - name: Load the role constants
+      ansible.builtin.include_vars:
+        file: "{{ role_dir }}/vars/main.yml"
+
+    - name: Run every case
+      ansible.builtin.include_tasks: assert-case.yml
+      loop: "{{ cases }}"
+      loop_control:
+        loop_var: case
+        label: "{{ case.name }}"
+
+    - name: Report
+      ansible.builtin.debug:
+        msg: "{{ cases | length }} cases passed"

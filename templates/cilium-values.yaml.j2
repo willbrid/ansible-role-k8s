@@ -45,16 +45,24 @@ hubble:
 {% endif %}
 {% endif %}
 
+# The chart defaults to two operator replicas, spread by an anti affinity rule
+# and bound to host ports. The CNI is deployed while the cluster is still the
+# single node that ran `kubeadm init`, so the second replica has nowhere to go
+# and stays Pending until another node joins. One replica is what a bootstrap
+# needs, raise it once the other control planes are in.
+operator:
+  replicas: {{ _k8s_cilium.operator_replicas }}
+{% if registry | length > 0 %}
+  image:
+    repository: {{ registry }}/operator
+    useDigest: false
+{% endif %}
+
 {% if registry | length > 0 %}
 # Every image is pulled from the internal mirror instead of quay.io/cilium.
 image:
   repository: {{ registry }}/cilium
   useDigest: false
-
-operator:
-  image:
-    repository: {{ registry }}/operator
-    useDigest: false
 
 envoy:
   image:

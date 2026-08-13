@@ -21,12 +21,43 @@
       - "{{ _k8s_cni_values_file }}"
     # Subscript notation on purpose: `.values` resolves to the dict method.
     release_values: "{{ _k8s_cilium['values'] }}"
-    wait: true
-    wait_timeout: 10m
+    # Helm does not wait here, the daemonset rollout below is the readiness
+    # signal, and a stricter one: `--wait` accepts a workload as ready as soon as
+    # it has `replicas - maxUnavailable` pods up, which the chart sets to 100%
+    # for the operator, so the check passes on a deployment that has not placed a
+    # single pod. All it really buys is a ten minute poll loop against an API
+    # server that Cilium is about to shake, and a release marked failed when one
+    # of those polls comes back with a transient error.
+    wait: false
+  # Cilium takes the datapath over as it starts, and on a node sized close to
+  # the metal the control plane feels it: the API server can fail its liveness
+  # probe and be restarted right underneath. A restarted API server denies
+  # everything for the second its authorizer caches need to sync, which surfaces
+  # as a `is forbidden: User "kubernetes-admin" cannot ...` error that has
+  # nothing to do with RBAC. Retry rather than fail the whole run on it.
+  register: _k8s_cilium_deployed
+  until: _k8s_cilium_deployed is succeeded
+  retries: 3
+  delay: 20
 
 - name: Wait for the Cilium agent daemonset to be rolled out
   ansible.builtin.command: >-
     kubectl --kubeconfig {{ _k8s_admin_kubeconfig }}
     rollout status daemonset/cilium -n {{ _k8s_cilium.namespace }} --timeout=600s
   register: _k8s_cilium_rollout
+  until: _k8s_cilium_rollout.rc == 0
+  retries: 3
+  delay: 20
   changed_when: false
+  failed_when: false
+
+- name: Assert the Cilium agent rolled out
+  ansible.builtin.assert:
+    that:
+      - _k8s_cilium_rollout.rc == 0
+    fail_msg: >-
+      The Cilium agent daemonset did not roll out. Inspect it with `kubectl -n
+      {{ _k8s_cilium.namespace }} describe daemonset/cilium` and
+      `kubectl -n {{ _k8s_cilium.namespace }} logs daemonset/cilium`.
+      Last error: {{ _k8s_cilium_rollout.stderr | default('') }}
+    quiet: true

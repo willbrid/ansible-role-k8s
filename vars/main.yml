@@ -147,6 +147,7 @@ _k8s_cilium_defaults:
   chart_ref: ""
   image_registry: ""
   kube_proxy_replacement: true
+  operator_replicas: 1
   routing_mode: "tunnel"
   tunnel_protocol: "vxlan"
   wireguard_enabled: false

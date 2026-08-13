@@ -1,21 +1,117 @@
 ---
-kubernetes_version: '1.29'
-kubernetes_specific_version: '1.29.13'
+# ---------------------------------------------------------------------------
+# Node role
+# ---------------------------------------------------------------------------
 kubernetes_role: "primary_control_plane"
+
+# Node label carrying kubernetes_role, so that the bootstrap order stays visible
+# from kubectl once the cluster is up. Kubernetes itself makes no difference
+# between a primary and a secondary control plane. Set to "" to label nothing.
+kubernetes_node_role_label: "willbrid.k8s/role"
+
+# ---------------------------------------------------------------------------
+# Versions
+# ---------------------------------------------------------------------------
+kubernetes_version: "1.34"
+kubernetes_patch_version: "1.34.10"
+
+# ---------------------------------------------------------------------------
+# Cluster endpoints
+# ---------------------------------------------------------------------------
 kubernetes_control_plane_ip: ""
 kubernetes_control_plane_endpoint: ""
-kubernetes_cni_network:
-  cni: 'calico'
-  cidr: '172.16.0.0/16'
-  pod_host_port: "179"
-  manifest: "https://docs.projectcalico.org/manifests/calico.yaml"
+kubernetes_control_plane_port: 6443
+kubernetes_node_ip: "{{ ansible_host | default(ansible_facts.default_ipv4.address) }}"
+
+# Directory receiving the administrator kubeconfig on the control plane nodes.
+kubernetes_kubeconfig_dir: "/root/.kube"
+
+# ---------------------------------------------------------------------------
+# Cluster networking
+# ---------------------------------------------------------------------------
+kubernetes_pod_network_cidr: "172.16.0.0/16"
+kubernetes_service_cidr: "10.96.0.0/12"
+
+# Container image registry used by kubeadm for the control plane images.
+# Leave empty to use the upstream registry (registry.k8s.io), or point it to an
+# internal mirror when the nodes have no direct internet access.
+kubernetes_image_repository: ""
+
+# ---------------------------------------------------------------------------
+# Package repositories
+#
+#   internet -> upstream repositories (pkgs.k8s.io and download.opensuse.org)
+#   custom   -> internal mirrors, for hosts without direct internet access
+# ---------------------------------------------------------------------------
+kubernetes_package_source: "internet"
+
+kubernetes_package_repositories:
+  kubernetes:
+    baseurl: ""
+    gpg_key_url: ""
+    gpg_key_content: ""
+    gpg_check: true
+  crio:
+    baseurl: ""
+    gpg_key_url: ""
+    gpg_key_content: ""
+    gpg_check: true
+
+# Hold kubelet/kubeadm/kubectl/cri-o so a distribution upgrade never moves them.
+kubernetes_packages_hold: true
+
+# ---------------------------------------------------------------------------
+# CNI selection: "calico" (nftables dataplane) or "cilium" (eBPF)
+# ---------------------------------------------------------------------------
+kubernetes_cni: "calico"
+
+# The three dictionaries below are merged key by key over the role defaults,
+# which live in `_k8s_helm_defaults`, `_k8s_calico_defaults` and
+# `_k8s_cilium_defaults` in vars/main.yml. Only set the keys you want to change,
+# every other one keeps its default value:
+#
+#   kubernetes_calico:
+#     bgp: "Enabled"
+#
+# Ansible replaces a dictionary instead of merging it, so listing the whole
+# dictionary here and letting the caller redefine it would silently drop every
+# key the caller left out. The per-key defaults are documented in README.md and
+# in meta/argument_specs.yml.
+
+# Helm is used to deploy both CNIs.
+kubernetes_helm: {}
+
+kubernetes_calico: {}
+
+kubernetes_cilium: {}
+
+# ---------------------------------------------------------------------------
+# Host firewall
+# ---------------------------------------------------------------------------
+kubernetes_firewall_manage: true
 kubernetes_control_plane_ports:
-  - '6443'
-  - '2379-2380'
-  - '10250'
-  - '10257'
-  - '10259'
+  - "6443"
+  - "2379-2380"
+  - "10250"
+  - "10257"
+  - "10259"
 kubernetes_node_ports:
-  - '10250'
-  - '10256'
-  - '30000-32767'
+  - "10250"
+  - "10256"
+  - "30000-32767"
+kubernetes_extra_tcp_ports: []
+kubernetes_extra_udp_ports: []
+
+# ---------------------------------------------------------------------------
+# System preparation
+# ---------------------------------------------------------------------------
+kubernetes_disable_swap: true
+kubernetes_selinux_permissive: true
+
+# ---------------------------------------------------------------------------
+# Preflight checks
+# ---------------------------------------------------------------------------
+kubernetes_preflight_enabled: true
+kubernetes_preflight_min_cpu: 2
+kubernetes_preflight_min_memory_mb: 1700
+kubernetes_preflight_min_free_disk_mb: 10240

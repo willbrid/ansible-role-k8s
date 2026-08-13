@@ -1,4 +1,14 @@
 ---
+# The kubernetes.core.helm and helm_template modules execute on the control
+# plane node, where they import PyYAML. A minimal image does not ship it, and
+# the module then fails with "Failed to import the required Python library
+# (yaml)". Only the primary control plane reaches this file, so nothing is
+# installed on the other nodes.
+- name: Ensure the Python YAML library required by the Helm modules is installed
+  ansible.builtin.package:
+    name: "{{ _k8s_python_yaml_package }}"
+    state: present
+
 - name: Check the installed Helm version
   ansible.builtin.command: "{{ _k8s_helm.binary_path }} version --short"
   register: _k8s_helm_installed

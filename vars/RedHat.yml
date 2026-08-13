@@ -11,3 +11,7 @@ _k8s_bootstrap_packages:
   - python3-policycoreutils
 
 _k8s_crio_package: cri-o
+
+# PyYAML, imported by the kubernetes.core.helm and helm_template modules on the
+# managed node. Not part of a minimal RHEL or Rocky Linux image.
+_k8s_python_yaml_package: python3-pyyaml

@@ -11,7 +11,12 @@
          else _k8s_repo_key_url[item]
          if kubernetes_package_repositories[item].gpg_check | bool
          else omit }}
-    trusted: "{{ not kubernetes_package_repositories[item].gpg_check | bool }}"
+    # Only ever set to true, never to false. `Trusted: no` does not mean "check
+    # the signature", it forces apt to report the repository as unauthenticated
+    # even when the signature verifies, which breaks the install with
+    # "There were unauthenticated packages". Omitting the field leaves apt on
+    # its default: trust follows the signature check.
+    trusted: "{{ omit if kubernetes_package_repositories[item].gpg_check | bool else true }}"
     enabled: true
     state: present
     mode: "0644"

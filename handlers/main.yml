@@ -3,30 +3,12 @@
   ansible.builtin.apt:
     update_cache: true
 
-- name: Apply sysctl settings
-  ansible.builtin.command: sysctl --system
-  changed_when: true
-
 - name: Restart kubelet
   ansible.builtin.systemd_service:
     name: kubelet
     state: restarted
     daemon_reload: true
 
-- name: Restart CRI-O
-  ansible.builtin.systemd_service:
-    name: crio
-    state: restarted
-    daemon_reload: true
-
 - name: Reload ufw
   community.general.ufw:
-    state: reloaded
-
-# Reloaded rather than restarted: rereading the configuration is enough to pick
-# up unmanaged-devices, and a restart would bounce the interface Ansible is
-# connected through.
-- name: Reload NetworkManager
-  ansible.builtin.systemd_service:
-    name: NetworkManager
     state: reloaded

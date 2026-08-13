@@ -8,6 +8,10 @@
     path: /etc/NetworkManager/conf.d
   register: _k8s_nm_conf_d
 
+- name: Collect the service facts
+  ansible.builtin.service_facts:
+  when: _k8s_nm_conf_d.stat.isdir | default(false)
+
 - name: Keep NetworkManager away from the CNI interfaces
   ansible.builtin.copy:
     dest: /etc/NetworkManager/conf.d/99-kubernetes-cni.conf
@@ -19,4 +23,21 @@
       [keyfile]
       unmanaged-devices={{ _k8s_cni_unmanaged_devices | join(';') }}
   when: _k8s_nm_conf_d.stat.isdir | default(false)
-  notify: Reload NetworkManager
+
+# Unconditional rather than notified by the task above. A handler fires only on
+# the run that rewrites the file, and is dropped entirely when the play fails
+# before the handlers flush: the configuration then sits on disk while the
+# running daemon keeps managing the CNI interfaces, and no later run notices,
+# since the file it compares against is already correct. NetworkManager exposes
+# no way to read back the unmanaged-devices it actually loaded, so rather than
+# guess, the reload is simply always requested. It is a SIGHUP, it rereads the
+# configuration without touching the existing connections, and a restart is
+# avoided because it would bounce the interface Ansible is connected through.
+- name: Make NetworkManager reread its configuration
+  ansible.builtin.systemd_service:
+    name: NetworkManager
+    state: reloaded
+  changed_when: false
+  when:
+    - _k8s_nm_conf_d.stat.isdir | default(false)
+    - ansible_facts.services['NetworkManager.service'].state | default('') == 'running'

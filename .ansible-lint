@@ -1,5 +1,11 @@
 ---
+profile: production
+
+exclude_paths:
+  - .github/
+  - sandbox.md
+
 skip_list:
-  - 'yaml'
-  - 'risky-shell-pipe'
-  - 'no-handler'
+  # Package versions are pinned through kubernetes_patch_version, which is the
+  # whole point of the role.
+  - package-latest

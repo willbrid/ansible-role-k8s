@@ -1,0 +1,46 @@
+---
+# Tear the cluster down while keeping the VMs, so that the role can be re-run
+# from scratch without a full `vagrant destroy`.
+#
+# DESTRUCTIVE: it wipes /etc/kubernetes, the etcd data and the CNI state on
+# every node. Only ever point it at the sandbox inventory.
+#
+# For a guaranteed clean slate, prefer `vagrant destroy -f && vagrant up`: this
+# playbook leaves the installed packages, the repositories and the firewall
+# rules in place, which is exactly what makes it fast.
+
+- name: Reset the worker nodes
+  hosts: node
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Import the reset tasks
+      ansible.builtin.include_tasks: tasks/reset-node.yml
+
+- name: Reset the additional control planes
+  hosts: secondary_control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Import the reset tasks
+      ansible.builtin.include_tasks: tasks/reset-node.yml
+
+- name: Reset the primary control plane
+  hosts: primary_control_plane
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Remove the Helm releases
+      ansible.builtin.command: >-
+        /usr/local/bin/helm --kubeconfig /etc/kubernetes/admin.conf
+        uninstall {{ item.release }} -n {{ item.namespace }} --ignore-not-found
+      loop:
+        - { release: calico, namespace: tigera-operator }
+        - { release: cilium, namespace: kube-system }
+      loop_control:
+        label: "{{ item.release }}"
+      changed_when: false
+      failed_when: false
+
+    - name: Import the reset tasks
+      ansible.builtin.include_tasks: tasks/reset-node.yml

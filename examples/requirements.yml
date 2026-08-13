@@ -1,0 +1,19 @@
+---
+# Everything the sandbox needs on the controller:
+#   ansible-galaxy install -r requirements.yml
+#
+# The role is pulled from git under the name `ansible-role-k8s`, which is the
+# name the playbooks of this directory reference. Pin `version` to a tag for a
+# reproducible run, or point it at `main` to follow the branch.
+roles:
+  - name: ansible-role-k8s
+    src: git+https://github.com/willbrid/ansible-role-k8s.git
+    version: main
+
+collections:
+  - name: ansible.posix
+    version: ">=2.2.2"
+  - name: community.general
+    version: ">=9.0.0"
+  - name: kubernetes.core
+    version: ">=5.0.0"

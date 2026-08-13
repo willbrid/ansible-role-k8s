@@ -1,0 +1,25 @@
+# Reference inventory of the sandbox.
+#
+# `bin/gen-inventory.sh` writes the real `inventory/hosts.ini` next to this
+# file, reading the SSH user and the private key from `vagrant ssh-config`.
+# That generated file is not committed: it carries an absolute path that is
+# specific to the machine running the sandbox.
+#
+# The hostnames are the private network IP addresses on purpose: the role uses
+# `ansible_host` as the kubelet node IP, and delegates the `kubeadm token
+# create` call to `kubernetes_control_plane_ip`, which therefore has to be an
+# inventory host.
+
+[primary_control_plane]
+192.168.56.6 ansible_user=vagrant ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_keys/vagrant.key.rsa
+
+[secondary_control_plane]
+192.168.56.7 ansible_user=vagrant ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_keys/vagrant.key.rsa
+
+[node]
+192.168.56.8 ansible_user=vagrant ansible_ssh_private_key_file=~/.vagrant.d/insecure_private_keys/vagrant.key.rsa
+
+[k8s_cluster:children]
+primary_control_plane
+secondary_control_plane
+node

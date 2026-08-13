@@ -1,0 +1,20 @@
+---
+# Same as custom-repo-rpm.yml, for the Debian family.
+#
+#   BOX_DISTRO="generic/debian12" BOX_DISTRO_VERSION="4.3.12" vagrant up
+#   ansible-playbook playbooks/site.yml \
+#     -e @scenarios/calico-nftables.yml -e @scenarios/custom-repo-deb.yml
+
+kubernetes_package_source: "custom"
+
+kubernetes_package_repositories:
+  kubernetes:
+    baseurl: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/"
+    gpg_key_url: "https://pkgs.k8s.io/core:/stable:/v1.34/deb/Release.key"
+    gpg_key_content: ""
+    gpg_check: true
+  crio:
+    baseurl: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.34/deb/"
+    gpg_key_url: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.34/deb/Release.key"
+    gpg_key_content: ""
+    gpg_check: true

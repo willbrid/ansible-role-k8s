@@ -1,0 +1,112 @@
+---
+# Health check of the cluster built by the role. Read only, safe to re-run.
+- name: Verify the cluster
+  hosts: primary_control_plane
+  become: true
+  gather_facts: false
+
+  vars:
+    kubectl: "kubectl --kubeconfig /etc/kubernetes/admin.conf"
+
+  tasks:
+    - name: Collect the nodes
+      ansible.builtin.command: "{{ kubectl }} get nodes -o wide --no-headers"
+      register: nodes
+      changed_when: false
+
+    - name: Assert every node is Ready
+      ansible.builtin.assert:
+        that:
+          - nodes.stdout_lines | length == groups['k8s_cluster'] | length
+          - nodes.stdout_lines | select('search', '\\bNotReady\\b') | list | length == 0
+        fail_msg: |
+          Expected {{ groups['k8s_cluster'] | length }} Ready nodes, got:
+          {{ nodes.stdout }}
+        quiet: true
+
+    - name: Collect the pods that are neither Running nor Succeeded
+      ansible.builtin.command: >-
+        {{ kubectl }} get pods -A --no-headers
+        --field-selector=status.phase!=Running,status.phase!=Succeeded
+      register: unhealthy_pods
+      changed_when: false
+
+    - name: Assert no pod is stuck
+      ansible.builtin.assert:
+        that:
+          - unhealthy_pods.stdout | trim | length == 0
+        fail_msg: |
+          Some pods are not Running:
+          {{ unhealthy_pods.stdout }}
+        quiet: true
+
+    - name: Verify the Calico nftables dataplane
+      when: kubernetes_cni == 'calico'
+      block:
+        - name: Read the kube-proxy configuration
+          ansible.builtin.command: "{{ kubectl }} -n kube-system get configmap kube-proxy -o yaml"
+          register: kube_proxy_cm
+          changed_when: false
+
+        - name: Assert kube-proxy runs in nftables mode
+          ansible.builtin.assert:
+            that:
+              - kube_proxy_cm.stdout is search('mode:\\s*nftables')
+            fail_msg: "kube-proxy is not in nftables mode, Calico and kube-proxy would program different frameworks."
+            quiet: true
+
+        - name: List the nftables tables of the node
+          ansible.builtin.command: nft list tables
+          register: nft_tables
+          changed_when: false
+
+        - name: Assert Calico programmed its nftables tables
+          ansible.builtin.assert:
+            that:
+              - nft_tables.stdout is search('cali')
+            fail_msg: |
+              No Calico table found in the nftables ruleset, the dataplane is not active:
+              {{ nft_tables.stdout }}
+            quiet: true
+
+        - name: Check the calico-node rollout
+          ansible.builtin.command: "{{ kubectl }} -n calico-system rollout status daemonset/calico-node --timeout=60s"
+          register: calico_rollout
+          changed_when: false
+
+    - name: Verify the Cilium eBPF dataplane
+      when: kubernetes_cni == 'cilium'
+      block:
+        - name: Look for a kube-proxy daemonset
+          ansible.builtin.command: "{{ kubectl }} -n kube-system get daemonset kube-proxy"
+          register: kube_proxy_ds
+          changed_when: false
+          failed_when: false
+
+        - name: Assert kube-proxy was not deployed
+          ansible.builtin.assert:
+            that:
+              - kube_proxy_ds.rc != 0
+            fail_msg: "A kube-proxy daemonset is present although Cilium runs in kube-proxy replacement mode."
+            quiet: true
+          when: kubernetes_cilium.kube_proxy_replacement | bool
+
+        - name: Read the Cilium agent status
+          ansible.builtin.command: >-
+            {{ kubectl }} -n {{ kubernetes_cilium.namespace }}
+            exec daemonset/cilium -c cilium-agent -- cilium-dbg status --brief
+          register: cilium_status
+          changed_when: false
+
+        - name: Assert the Cilium agent reports OK
+          ansible.builtin.assert:
+            that:
+              - cilium_status.stdout is search('OK')
+            fail_msg: |
+              The Cilium agent is not healthy:
+              {{ cilium_status.stdout }}
+            quiet: true
+
+    - name: Summarise the cluster
+      ansible.builtin.debug:
+        msg: "{{ nodes.stdout_lines }}"

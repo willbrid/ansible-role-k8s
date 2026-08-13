@@ -1,0 +1,24 @@
+---
+# Exercises the "custom repository" code path on the RedHat family without
+# needing a real internal mirror: the base URLs are the upstream ones, but the
+# role goes through kubernetes_package_repositories instead of building them
+# itself. Combine it with a CNI scenario file.
+#
+#   ansible-playbook playbooks/site.yml \
+#     -e @scenarios/calico-nftables.yml -e @scenarios/custom-repo-rpm.yml
+#
+# Replace the URLs with your own mirror to test a genuinely air-gapped install.
+
+kubernetes_package_source: "custom"
+
+kubernetes_package_repositories:
+  kubernetes:
+    baseurl: "https://pkgs.k8s.io/core:/stable:/v1.34/rpm/"
+    gpg_key_url: "https://pkgs.k8s.io/core:/stable:/v1.34/rpm/repodata/repomd.xml.key"
+    gpg_key_content: ""
+    gpg_check: true
+  crio:
+    baseurl: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.34/rpm/"
+    gpg_key_url: "https://download.opensuse.org/repositories/isv:/cri-o:/stable:/v1.34/rpm/repodata/repomd.xml.key"
+    gpg_key_content: ""
+    gpg_check: true

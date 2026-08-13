@@ -1,0 +1,15 @@
+---
+# Cilium with the eBPF dataplane, replacing kube-proxy.
+#
+# Requires kernel >= 5.10, the eBPF kernel options, BTF metadata and the cgroup
+# v2 unified hierarchy. kubeadm skips the kube-proxy addon entirely, so there is
+# no kube-proxy DaemonSet in the resulting cluster.
+
+kubernetes_cni: "cilium"
+
+kubernetes_cilium:
+  version: "1.20.0"
+  kube_proxy_replacement: true
+  routing_mode: "tunnel"
+  tunnel_protocol: "vxlan"
+  hubble_enabled: true

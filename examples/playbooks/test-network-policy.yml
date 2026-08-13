@@ -1,0 +1,218 @@
+---
+# Pod to pod connectivity and NetworkPolicy enforcement.
+#
+# This is the test Flannel could not pass, and the reason it was dropped from
+# the role: it checks that a default-deny policy actually blocks traffic, and
+# that an explicit allow rule restores it.
+- name: Test connectivity and NetworkPolicy enforcement
+  hosts: primary_control_plane
+  become: true
+  gather_facts: false
+
+  vars:
+    kubectl: "kubectl --kubeconfig /etc/kubernetes/admin.conf"
+    test_namespace: "k8s-role-test"
+    test_image: "registry.k8s.io/e2e-test-images/agnhost:2.53"
+    workload_manifest: "/tmp/k8s-role-test-workload.yaml"
+    deny_manifest: "/tmp/k8s-role-test-deny.yaml"
+    allow_manifest: "/tmp/k8s-role-test-allow.yaml"
+    connect_target: "web.k8s-role-test.svc.cluster.local:8080"
+
+  tasks:
+    - name: Render the workload manifest
+      ansible.builtin.copy:
+        dest: "{{ workload_manifest }}"
+        mode: "0600"
+        content: |
+          apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: {{ test_namespace }}
+          ---
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: web
+            namespace: {{ test_namespace }}
+          spec:
+            replicas: 2
+            selector:
+              matchLabels:
+                app: web
+            template:
+              metadata:
+                labels:
+                  app: web
+              spec:
+                affinity:
+                  podAntiAffinity:
+                    preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 100
+                        podAffinityTerm:
+                          topologyKey: kubernetes.io/hostname
+                          labelSelector:
+                            matchLabels:
+                              app: web
+                containers:
+                  - name: agnhost
+                    image: {{ test_image }}
+                    args: ["netexec", "--http-port=8080"]
+                    ports:
+                      - containerPort: 8080
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: web
+            namespace: {{ test_namespace }}
+          spec:
+            selector:
+              app: web
+            ports:
+              - port: 8080
+                targetPort: 8080
+          ---
+          apiVersion: v1
+          kind: Pod
+          metadata:
+            name: client
+            namespace: {{ test_namespace }}
+            labels:
+              app: client
+          spec:
+            containers:
+              - name: agnhost
+                image: {{ test_image }}
+                command: ["sleep", "3600"]
+
+    - name: Render the default deny policy
+      ansible.builtin.copy:
+        dest: "{{ deny_manifest }}"
+        mode: "0600"
+        content: |
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: default-deny-ingress
+            namespace: {{ test_namespace }}
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+
+    - name: Render the allow policy
+      ansible.builtin.copy:
+        dest: "{{ allow_manifest }}"
+        mode: "0600"
+        content: |
+          apiVersion: networking.k8s.io/v1
+          kind: NetworkPolicy
+          metadata:
+            name: allow-client-to-web
+            namespace: {{ test_namespace }}
+          spec:
+            podSelector:
+              matchLabels:
+                app: web
+            policyTypes:
+              - Ingress
+            ingress:
+              - from:
+                  - podSelector:
+                      matchLabels:
+                        app: client
+                ports:
+                  - protocol: TCP
+                    port: 8080
+
+    - name: Deploy the test workload
+      ansible.builtin.command: "{{ kubectl }} apply -f {{ workload_manifest }}"
+      register: workload_applied
+      changed_when: "'created' in workload_applied.stdout or 'configured' in workload_applied.stdout"
+
+    - name: Wait for the web deployment
+      ansible.builtin.command: "{{ kubectl }} -n {{ test_namespace }} rollout status deployment/web --timeout=300s"
+      changed_when: false
+
+    - name: Wait for the client pod
+      ansible.builtin.command: "{{ kubectl }} -n {{ test_namespace }} wait --for=condition=Ready pod/client --timeout=300s"
+      changed_when: false
+
+    - name: Reach the web service through cluster DNS and the service VIP
+      ansible.builtin.command: >-
+        {{ kubectl }} -n {{ test_namespace }} exec client --
+        /agnhost connect --timeout=10s {{ connect_target }}
+      register: connect_open
+      until: connect_open.rc == 0
+      retries: 12
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the traffic flows without any policy
+      ansible.builtin.assert:
+        that:
+          - connect_open.rc == 0
+        fail_msg: |
+          Pod to service connectivity is broken before any NetworkPolicy is applied:
+          {{ connect_open.stderr | default('') }}
+        quiet: true
+
+    - name: Apply the default deny ingress policy
+      ansible.builtin.command: "{{ kubectl }} apply -f {{ deny_manifest }}"
+      register: deny_applied
+      changed_when: "'created' in deny_applied.stdout or 'configured' in deny_applied.stdout"
+
+    - name: Try to reach the web service through the deny policy
+      ansible.builtin.command: >-
+        {{ kubectl }} -n {{ test_namespace }} exec client --
+        /agnhost connect --timeout=5s {{ connect_target }}
+      register: connect_denied
+      until: connect_denied.rc != 0
+      retries: 12
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the default deny policy blocks the traffic
+      ansible.builtin.assert:
+        that:
+          - connect_denied.rc != 0
+        fail_msg: >-
+          The default-deny-ingress NetworkPolicy is not enforced, this CNI does
+          not implement network policies.
+        quiet: true
+
+    - name: Apply the allow policy
+      ansible.builtin.command: "{{ kubectl }} apply -f {{ allow_manifest }}"
+      register: allow_applied
+      changed_when: "'created' in allow_applied.stdout or 'configured' in allow_applied.stdout"
+
+    - name: Reach the web service again through the allow policy
+      ansible.builtin.command: >-
+        {{ kubectl }} -n {{ test_namespace }} exec client --
+        /agnhost connect --timeout=10s {{ connect_target }}
+      register: connect_allowed
+      until: connect_allowed.rc == 0
+      retries: 12
+      delay: 5
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the allow policy restores the traffic
+      ansible.builtin.assert:
+        that:
+          - connect_allowed.rc == 0
+        fail_msg: "The allow-client-to-web NetworkPolicy does not restore the traffic."
+        quiet: true
+
+    - name: Report the result
+      ansible.builtin.debug:
+        msg:
+          - "connectivity through cluster DNS and the service VIP: OK"
+          - "default deny ingress enforced: OK"
+          - "explicit allow restores the traffic: OK"
+
+    - name: Remove the test namespace
+      ansible.builtin.command: "{{ kubectl }} delete namespace {{ test_namespace }} --wait=false --ignore-not-found"
+      changed_when: true

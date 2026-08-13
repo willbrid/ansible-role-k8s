@@ -1,0 +1,10 @@
+---
+- name: Install the additional control planes
+  hosts: secondary_control_plane
+  become: true
+
+  vars:
+    kubernetes_role: "secondary_control_plane"
+
+  roles:
+    - ansible-role-k8s

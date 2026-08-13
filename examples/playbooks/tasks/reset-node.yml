@@ -1,0 +1,41 @@
+---
+- name: Run kubeadm reset
+  ansible.builtin.command: kubeadm reset -f --cri-socket unix:///var/run/crio/crio.sock
+  register: kubeadm_reset
+  changed_when: kubeadm_reset.rc == 0
+  failed_when: false
+
+- name: Remove the leftover cluster state
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /etc/cni/net.d
+    - /etc/kubernetes
+    - /var/lib/etcd
+    - /var/lib/cni
+    - /root/.kube
+    - /var/run/calico
+    - /var/run/cilium
+
+- name: Remove the CNI network interfaces
+  ansible.builtin.command: "ip link delete {{ item }}"
+  loop:
+    - vxlan.calico
+    - cilium_host
+    - cilium_net
+    - cilium_vxlan
+    - tunl0
+  register: link_delete
+  changed_when: link_delete.rc == 0
+  failed_when: false
+
+- name: Restart CRI-O
+  ansible.builtin.systemd_service:
+    name: crio
+    state: restarted
+
+- name: Stop kubelet
+  ansible.builtin.systemd_service:
+    name: kubelet
+    state: stopped

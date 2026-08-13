@@ -1,0 +1,21 @@
+---
+# Calico with the nftables dataplane.
+#
+# Requires kernel >= 5.13, nft >= 1.0.1 and Kubernetes >= 1.31, since kube-proxy
+# is put in nftables mode so that service rules and Calico rules share the same
+# packet filtering framework.
+#
+#   Rocky 9      kernel 5.14   OK
+#   Debian 12    kernel 6.1    OK
+#   Ubuntu 22.04 kernel 5.15   OK
+#   Ubuntu 24.04 kernel 6.8    OK
+#   Debian 11    kernel 5.10   rejected by the preflight, use Cilium there
+
+kubernetes_cni: "calico"
+
+kubernetes_calico:
+  version: "v3.32.1"
+  encapsulation: "VXLANCrossSubnet"
+  bgp: "Disabled"
+  api_server: true
+  block_size: 26

@@ -10,6 +10,12 @@ kubernetes_cni: "cilium"
 kubernetes_cilium:
   version: "1.20.0"
   kube_proxy_replacement: true
+  # Active/standby operator, which the three node sandbox has room for. The
+  # second replica is created while the primary control plane is the only node
+  # and stays Pending there: the operator runs on the host network with fixed
+  # host ports, so a node never carries two. The scheduler places it by itself
+  # as soon as the second control plane joins, no second Helm pass needed.
+  operator_replicas: 2
   routing_mode: "tunnel"
   tunnel_protocol: "vxlan"
   hubble_enabled: true

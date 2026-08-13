@@ -181,6 +181,7 @@ It is documentation, not behaviour: nothing in the role reads that label back. I
 `kubernetes_cilium.chart_ref`|str|Direct reference to the `cilium` chart, local path, `.tgz` or `oci://` URL, bypasses `chart_repo_url`|no|`""`
 `kubernetes_cilium.image_registry`|str|Replacement for the `quay.io/cilium` image prefix, for example `registry.corp.local/cilium`|no|`""`
 `kubernetes_cilium.kube_proxy_replacement`|bool|Let Cilium replace kube-proxy, kubeadm then skips the kube-proxy addon entirely|no|`true`
+`kubernetes_cilium.operator_replicas`|int|Number of `cilium-operator` replicas. The operator runs on the host network with fixed host ports and an anti affinity rule, so a node carries at most one replica: asking for more replicas than the cluster has nodes leaves the extra ones `Pending` until nodes join. The CNI is installed while the cluster is still the single node that ran `kubeadm init`, hence the default of one. Set it to `2` for an active/standby operator on a multi node cluster|no|`1`
 `kubernetes_cilium.routing_mode`|str|Routing mode. Possible values: **tunnel**, **native**|no|`"tunnel"`
 `kubernetes_cilium.tunnel_protocol`|str|Encapsulation protocol, read when `routing_mode` is `tunnel`. Possible values: **vxlan**, **geneve**|no|`"vxlan"`
 `kubernetes_cilium.wireguard_enabled`|bool|Encrypt the pod to pod traffic with WireGuard|no|`false`

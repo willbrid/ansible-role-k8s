@@ -1,4 +1,4 @@
-# Sandbox with VirtualBox 7.0.24
+# Sandbox with VirtualBox 7.2.14
 
 This page builds the virtual machines by hand, to be paired with the playbooks of the [Example Playbook](README.md#example-playbook) section. For a sandbox that is already assembled, with its inventory generator, its scenario files and its verification playbooks, use [examples/](examples) instead.
 
@@ -6,8 +6,10 @@ This page builds the virtual machines by hand, to be paired with the playbooks o
 mkdir -p $HOME/install-k8s && cd $HOME/install-k8s
 ```
 
+Use Vagrant 2.4.9 or later: earlier releases do not list VirtualBox 7.2 as a supported provider and refuse to start.
+
 ```bash
-wget https://download.virtualbox.org/virtualbox/7.0.24/VBoxGuestAdditions_7.0.24.iso
+wget https://download.virtualbox.org/virtualbox/7.2.14/VBoxGuestAdditions_7.2.14.iso
 ```
 
 ```bash
@@ -23,7 +25,7 @@ VAGRANTFILE_API_VERSION = "2"
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   config.vbguest.auto_update = false
   config.vbguest.no_remote = true
-  config.vbguest.iso_path = "./VBoxGuestAdditions_7.0.24.iso"
+  config.vbguest.iso_path = "./VBoxGuestAdditions_7.2.14.iso"
 
   box_distro = ENV['BOX_DISTRO'] || "bento/rockylinux-9"
   box_version = ENV['BOX_DISTRO_VERSION'] || "202510.26.0"
@@ -53,7 +55,7 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
 end
 ```
 
-To boot the machines according to the Rocky Linux 9, Debian 12, Ubuntu 24.04, Ubuntu 22.04 distributions, proceed as follows:
+To boot the machines according to the Rocky Linux 10, Rocky Linux 9, Debian 12, Ubuntu 24.04, Ubuntu 22.04 distributions, proceed as follows:
 
 > Note: Calico is only installed with the nftables dataplane, which requires a kernel >= 5.13. Ubuntu 22.04 ships a 5.15 kernel and Debian 12 a 6.1 kernel, both are fine, but Debian 11 (5.10) is rejected by the preflight checks. Use `kubernetes_cni: cilium` there, or pick a more recent box.
 
@@ -66,6 +68,14 @@ vagrant up
 ```
 
 > Note: By default for rockylinux9, BOX_DISTRO="bento/rockylinux-9" and BOX_DISTRO_VERSION="202510.26.0" 
+
+- for rockylinux10
+
+```
+BOX_DISTRO="bento/rockylinux-10" BOX_DISTRO_VERSION="202512.01.0" vagrant up
+```
+
+> Note: this box is the reason for VirtualBox 7.2 above. RHEL 10 and its rebuilds are built for the x86-64-v3 baseline, and older VirtualBox releases neither import the EFI/NVRAM box (`Unknown resource type 32768`) nor pass `FMA` and `F16C` to the guest, which panics with `Attempted to kill init` before the login prompt.
 
 - for ubuntu24.04
 

@@ -222,6 +222,14 @@ Two requirements are handled for both CNIs:
 - `/etc/NetworkManager/conf.d/99-kubernetes-cni.conf` marks the CNI interfaces unmanaged, which Calico requires. Without it NetworkManager claims them and takes the datapath down on its next reload;
 - the matching kernel modules (`vxlan`, `geneve`, `ipip`, `wireguard`) are loaded and made persistent according to the encapsulation actually configured.
 
+**RHEL 10 and its rebuilds need one extra package.** `br_netfilter` moved from `kernel-modules-core`, installed with the base kernel, to `kernel-modules-extra`, which a minimal image does not carry, and `modprobe` then stops the run:
+
+```
+modprobe: FATAL: Module br_netfilter not found in directory /lib/modules/6.12.0-211.16.1.el10_2.0.1.x86_64
+```
+
+The role probes the running kernel with `modinfo` and installs `kernel-modules-extra` for **that exact kernel** when a module is missing, so RHEL 9 is left untouched and no node ends up with modules built for a kernel it is not running. If the running kernel is older than the one the repositories now carry, the pinned package no longer exists there and the role stops with a message asking for a `dnf -y update kernel\*` and a reboot.
+
 ### Preflight checks
 
 |Name|Type|Description|Mandatory|Default value|

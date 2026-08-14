@@ -89,11 +89,14 @@
               - kube_proxy_ds.rc != 0
             fail_msg: "A kube-proxy daemonset is present although Cilium runs in kube-proxy replacement mode."
             quiet: true
-          when: kubernetes_cilium.kube_proxy_replacement | bool
+          when: kubernetes_cilium.kube_proxy_replacement | default(true) | bool
 
+        # Defaults repeated from the role: Ansible replaces a dictionary
+        # variable instead of merging it, so `kubernetes_cilium` holds exactly
+        # the keys the scenario file sets and nothing else.
         - name: Read the Cilium agent status
           ansible.builtin.command: >-
-            {{ kubectl }} -n {{ kubernetes_cilium.namespace }}
+            {{ kubectl }} -n {{ kubernetes_cilium.namespace | default('kube-system') }}
             exec daemonset/cilium -c cilium-agent -- cilium-dbg status --brief
           register: cilium_status
           changed_when: false

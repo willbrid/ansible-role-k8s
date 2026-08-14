@@ -5,6 +5,7 @@
 # is put in nftables mode so that service rules and Calico rules share the same
 # packet filtering framework.
 #
+#   Rocky 10     kernel 6.12   OK
 #   Rocky 9      kernel 5.14   OK
 #   Debian 12    kernel 6.1    OK
 #   Ubuntu 22.04 kernel 5.15   OK

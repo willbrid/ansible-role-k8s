@@ -36,17 +36,26 @@ examples/
 
 | Tool | Tested version |
 |------|----------------|
-| VirtualBox | 7.0.24 |
-| Vagrant | 2.4.3 |
+| VirtualBox | 7.2.14 |
+| Vagrant | 2.4.9 |
 | `vagrant-vbguest` plugin | 0.32.0 (optional) |
 | `ansible-core` | 2.20 (2.18 minimum) |
+
+> Vagrant only added VirtualBox 7.2 to its list of supported providers in
+> 2.4.9, so the two versions above go together.
+>
+> The Rocky Linux 10 box makes VirtualBox 7.2 a hard requirement: RHEL 10 and
+> its rebuilds are compiled for the x86-64-v3 baseline, and older VirtualBox
+> releases do not pass `FMA` and `F16C` through to the guest. The guest then
+> dies before the login prompt, with `Kernel panic - not syncing: Attempted to
+> kill init` on the console and a boot timeout on the Vagrant side.
 
 The `Vagrantfile` mounts the VirtualBox Guest Additions image if it finds one in
 this directory. It is not shipped here; download it only if you use the
 `vagrant-vbguest` plugin:
 
 ```bash
-wget https://download.virtualbox.org/virtualbox/7.0.24/VBoxGuestAdditions_7.0.24.iso
+wget https://download.virtualbox.org/virtualbox/7.2.14/VBoxGuestAdditions_7.2.14.iso
 ```
 
 ## Step 0 — Install the role and the collections
@@ -80,17 +89,18 @@ vagrant up
 
 | Machine | IP | Role | vCPU / RAM |
 |---------|----|------|------------|
-| control-server1 | 192.168.56.6 | `primary_control_plane` | 2 / 2048 |
-| control-server2 | 192.168.56.7 | `secondary_control_plane` | 2 / 2048 |
+| control-server1 | 192.168.56.6 | `primary_control_plane` | 2 / 2560 |
+| control-server2 | 192.168.56.7 | `secondary_control_plane` | 2 / 2560 |
 | worker-server | 192.168.56.8 | `node` | 4 / 4096 |
 
 The default distribution is **Rocky Linux 9** (`bento/rockylinux-9`
 202510.26.0). To change it:
 
 ```bash
-BOX_DISTRO="bento/ubuntu-24.04" BOX_DISTRO_VERSION="202502.21.0" vagrant up
-BOX_DISTRO="bento/ubuntu-22.04" BOX_DISTRO_VERSION="202407.23.0" vagrant up
-BOX_DISTRO="generic/debian12"   BOX_DISTRO_VERSION="4.3.12"      vagrant up
+BOX_DISTRO="bento/rockylinux-10" BOX_DISTRO_VERSION="202512.01.0" vagrant up
+BOX_DISTRO="bento/ubuntu-24.04"  BOX_DISTRO_VERSION="202502.21.0" vagrant up
+BOX_DISTRO="bento/ubuntu-22.04"  BOX_DISTRO_VERSION="202407.23.0" vagrant up
+BOX_DISTRO="generic/debian12"    BOX_DISTRO_VERSION="4.3.12"      vagrant up
 ```
 
 > The role preflight thresholds are 2 vCPU, 1700 MB of RAM and 10 GB free under
@@ -270,6 +280,7 @@ vagrant destroy -f && vagrant up && ./bin/gen-inventory.sh
 
 | Distribution | Kernel | Calico + nftables | Cilium |
 |--------------|--------|-------------------|--------|
+| Rocky Linux 10 | 6.12 | yes | yes |
 | Rocky Linux 9 | 5.14 | yes | yes |
 | Debian 12 | 6.1 | yes | yes |
 | Ubuntu 22.04 | 5.15 | yes | yes |
@@ -280,9 +291,12 @@ vagrant destroy -f && vagrant up && ./bin/gen-inventory.sh
 
 | Symptom | Likely cause |
 |---------|--------------|
+| Rocky Linux 10: boot timeout, and `Attempted to kill init` on the VM console | VirtualBox older than 7.2, which does not give the guest the x86-64-v3 instruction set EL10 is built for |
+| Rocky Linux 10: `Unknown resource type 32768 in hardware item` while importing the box | Same cause: the box OVF is EFI/NVRAM, which older VirtualBox releases cannot read |
+| `Vagrant has detected ... version of VirtualBox ... not supported` | Vagrant older than 2.4.9 against VirtualBox 7.2 |
 | `ansible k8s_cluster -m ping` fails with permission denied | Inventory not generated: run `./bin/gen-inventory.sh` |
 | `the role 'ansible-role-k8s' was not found` | Step 0 skipped, or `ANSIBLE_ROLES_PATH` not exported in this shell |
 | Preflight: "Repository ... is unreachable" | No internet access from the VMs, switch to `kubernetes_package_source: custom` |
-| Preflight: "A Kubernetes node needs at least 2 vCPU and 1700 MB" | Re-run `vagrant up` with `CP_MEM=2560` |
+| Preflight: "A Kubernetes node needs at least 2 vCPU and 1700 MB" | Re-run `vagrant up` with a higher `CP_MEM`. The control planes default to 2560 rather than 2048 because Rocky Linux 10 reports only 1686 MB usable out of 2048 |
 | `kubeadm join` fails on the worker | The primary control plane is not installed, or `kubernetes_control_plane_ip` is not an inventory host |
 | Pods stay `Pending` | Both control planes are `NoSchedule` by default; only `worker-server` takes workloads |

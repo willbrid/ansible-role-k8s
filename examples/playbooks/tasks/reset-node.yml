@@ -5,6 +5,14 @@
   changed_when: kubeadm_reset.rc == 0
   failed_when: false
 
+# Calico mounts a cgroup2 filesystem under /var/run/calico/cgroup for its
+# connect-time load balancer. Deleting the directory tree on top of a live
+# mount point fails with "Operation not permitted", so the mount goes first.
+- name: Unmount the Calico cgroup filesystem
+  ansible.posix.mount:
+    path: /var/run/calico/cgroup
+    state: unmounted
+
 - name: Remove the leftover cluster state
   ansible.builtin.file:
     path: "{{ item }}"
@@ -29,6 +37,15 @@
   register: link_delete
   changed_when: link_delete.rc == 0
   failed_when: false
+
+# kubeadm reset leaves the kube-proxy tables behind, and Calico leaves its own
+# `calico` and `calico-arp` tables. Those outlive the cluster and break the next
+# scenario: firewalld, which Cilium needs running, segfaults reading a Calico
+# ruleset back through libnftables and never comes up. The role documents the
+# same crash for the distribution tooling while Calico is installed.
+- name: Flush the nftables ruleset left behind by the CNI and kube-proxy
+  ansible.builtin.command: nft flush ruleset
+  changed_when: true
 
 - name: Restart CRI-O
   ansible.builtin.systemd_service:

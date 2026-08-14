@@ -12,7 +12,7 @@
 VAGRANTFILE_API_VERSION = "2"
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  guest_additions_iso = "./VBoxGuestAdditions_7.0.24.iso"
+  guest_additions_iso = "./VBoxGuestAdditions_7.2.14.iso"
 
   if Vagrant.has_plugin?("vagrant-vbguest")
     config.vbguest.auto_update = false
@@ -26,7 +26,10 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
   box_distro = ENV['BOX_DISTRO'] || "bento/rockylinux-9"
   box_version = ENV['BOX_DISTRO_VERSION'] || "202510.26.0"
 
-  cp_mem = (ENV['CP_MEM'] || "2048").to_i
+  # 2560 rather than 2048 because of Rocky Linux 10: its kernel reserves enough
+  # memory that a 2048 MB machine reports 1686 MB usable, just under the 1700 MB
+  # the role preflight asks for. Rocky Linux 9, Debian and Ubuntu fit in 2048.
+  cp_mem = (ENV['CP_MEM'] || "2560").to_i
   cp_cpu = (ENV['CP_CPU'] || "2").to_i
   worker_mem = (ENV['WORKER_MEM'] || "4096").to_i
   worker_cpu = (ENV['WORKER_CPU'] || "4").to_i

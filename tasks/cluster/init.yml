@@ -4,6 +4,17 @@
     path: /run/systemd/resolve/resolv.conf
   register: _k8s_resolved_stub
 
+# The kubeadm package creates /etc/kubernetes, so a first install finds it in
+# place. A reinstall does not: `kubeadm reset` and the teardown playbooks remove
+# the directory, and nothing recreates it since the packages are already there.
+- name: Ensure the Kubernetes configuration directory exists
+  ansible.builtin.file:
+    path: "{{ _k8s_kubeadm_config_file | dirname }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Render the kubeadm configuration
   ansible.builtin.template:
     src: kubeadm-config.yaml.j2

@@ -13,6 +13,69 @@
     replace: '#\1'
   when: kubernetes_disable_swap | bool
 
+# RHEL 10 moved br_netfilter from kernel-modules-core, installed with the base
+# kernel, to kernel-modules-extra, which is not. modprobe then stops the run
+# with "Module br_netfilter not found in directory /lib/modules/...". RHEL 9
+# still ships it in kernel-modules-core, hence the probe below rather than a
+# distribution version test: it also covers whatever the next release moves.
+- name: Look for the required kernel modules in the running kernel
+  ansible.builtin.command: "modinfo --field filename {{ item }}"
+  loop: "{{ _k8s_kernel_modules }}"
+  register: _k8s_modinfo
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: List the kernel modules the running kernel does not carry
+  ansible.builtin.set_fact:
+    _k8s_missing_modules: >-
+      {{ _k8s_modinfo.results | rejectattr('rc', 'eq', 0) | map(attribute='item') | list }}
+
+# Pinned to the running kernel on purpose. An unpinned install pulls the latest
+# kernel-core along with it and drops the modules under a /lib/modules
+# directory the running kernel does not read, so modprobe keeps failing until
+# the node is rebooted.
+- name: Install the extra kernel modules of the running kernel
+  ansible.builtin.dnf:
+    name: "kernel-modules-extra-{{ ansible_facts.kernel }}"
+    state: present
+  register: _k8s_modules_extra
+  failed_when: false
+  when:
+    - ansible_facts.os_family == 'RedHat'
+    - _k8s_missing_modules | length > 0
+
+# The kernel module tree is what the next task actually needs, so it is what is
+# checked. Asking the dnf result instead would prove nothing: `failed_when` also
+# rewrites `is failed`, so the task above always reports success.
+- name: Look again for the kernel modules that were missing
+  ansible.builtin.command: "modinfo --field filename {{ item }}"
+  loop: "{{ _k8s_missing_modules }}"
+  register: _k8s_modinfo_retry
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: _k8s_missing_modules | length > 0
+
+- name: Assert the running kernel now carries every required module
+  ansible.builtin.assert:
+    that:
+      - _k8s_still_missing | length == 0
+    fail_msg: >-
+      The running kernel {{ ansible_facts.kernel }} does not carry
+      {{ _k8s_still_missing | join(', ') }}, and the matching module package
+      could not be installed{{ ': ' ~ _k8s_dnf_error if _k8s_dnf_error | length > 0 else '' }}.
+      On the RedHat family br_netfilter ships in
+      kernel-modules-extra-{{ ansible_facts.kernel }}, which the repositories
+      only carry for the kernels they still distribute: run `dnf -y install
+      kernel`, which pulls the newest kernel together with its module packages,
+      reboot so that the running kernel matches, then run this role again.
+    quiet: true
+  vars:
+    _k8s_still_missing: >-
+      {{ _k8s_modinfo_retry.results | default([]) | rejectattr('rc', 'eq', 0) | map(attribute='item') | list }}
+    _k8s_dnf_error: "{{ _k8s_modules_extra.msg | default('') | trim }}"
+
 - name: Load the kernel modules required by the container runtime and the CNI
   community.general.modprobe:
     name: "{{ item }}"
